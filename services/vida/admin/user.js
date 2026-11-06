@@ -501,7 +501,7 @@ module.exports.notification = async (req,res,next)=>{
         } else {
             var headersOpt = {
                 "content-type": "application/json",
-                "Authorization": "***REMOVED***"
+                "Authorization": require('./../../../utils/push').authorizationHeader()
             };
             var enviados = 0;
             let finish = lodash.after(rows.length, function () {
@@ -526,7 +526,8 @@ module.exports.notification = async (req,res,next)=>{
                         }
                     }, function (error, response, body) {
                         //Print the Response
-                        if(body.success === 1){
+                        // si el envio falla, "body" puede venir vacio: antes esto tiraba el proceso
+                        if(body && body.success === 1){
                             enviados = enviados + 1;
                         }
                         finish();
@@ -647,6 +648,7 @@ module.exports.reminder = async(req,res,next)=> {
 }
 
 
+module.exports.getUserPermissions = getUserPermissions; // expuesto para pruebas
 function getUserPermissions(user){
 
     var permissions = ["EXTRA","SISA","AUDITORIA","FORMULARIOS","FALLECIDOS","DASHBOARD","REPORTSSUP","SOPORTE","WEBNOTIFICATIONS", "VALIDACIONES", "REGISTRACIONES", "DESCARGA","ARCHIVO", "USERADMIN", "REGISTROMANUAL", "NOTIFICACIONES", "COBRO", "ALERTAS", "ERRORES" ];
@@ -675,6 +677,8 @@ function getUserPermissions(user){
         permissions.splice(permissions.indexOf('ERRORES'), 1);
         permissions.splice(permissions.indexOf('ALERTAS'), 1);
     }
+    // Configuracion global (por ejemplo el interruptor de auditoria): solo el Administrador de TUID
+    if (user.empresa == "TUID" && user.rol != "U") permissions.push("CONFIGURACION");
     return permissions;
 
 }

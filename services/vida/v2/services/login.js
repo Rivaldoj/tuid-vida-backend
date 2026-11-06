@@ -5,6 +5,7 @@ const tokenizer = require('../../../../utils/tokenizer');
 const vidaLogin = require('../../login');
 const shared = require('./shared');
 const cuilUtil = require('../../../../utils/cuil');
+const settings = require('../../../../utils/settings');
 
 // Filtros para ubicar a la persona. El CUIL es el identificador valido ante los organismos previsionales
 // y fiscales y evita el problema de los DNI duplicados y del prefijo que ya no indica el sexo.
@@ -273,17 +274,24 @@ module.exports.saveLogin = async (req, res, next) => {
     const user = req.loginUser;
     let emps;
     let pendingTasks;
+    // Interruptor de auditoria (tabla configuracion): apagado => la certificacion pasa directo y queda con auditor = 'Liveness'
+    let auditor = null;
+    try {
+        auditor = await settings.auditorDeCertificacion();
+    } catch (err) {
+        auditor = null; // ante la duda, queda pendiente de Auditoria
+    }
     try {
         // Por CUIL (el usuario ya fue identificado): evita mezclar a dos personas con el mismo DNI y sexo
         emps = await VIDA_DB.sync_query(pendingQuery(FILTER_BY_CUIL), [user.cuil, user.cuil]);
         const empresas = emps.length > 0 ? emps.map((e) => e.empresa) : [null];
         for (const empresa of empresas) {
             await VIDA_DB.sync_query(
-                `INSERT INTO auditoria (id_usuario, fecha, id_device, similitud, empresa, latitud, longitud, version, os, direccion, cuil, appversion, session_id, liveness_confidence)
-                VALUES (?, NOW(), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                `INSERT INTO auditoria (id_usuario, fecha, id_device, similitud, empresa, latitud, longitud, version, os, direccion, cuil, appversion, session_id, liveness_confidence, auditor, fechaAuditoria)
+                VALUES (?, NOW(), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, IF(? IS NULL, NULL, CURDATE()))`,
                 [user.id_usuario, req.body.idDevice || null, req.similitud, empresa, req.body.latitud || null, req.body.longitud || null,
                     req.body.version || null, req.body.os || null, req.body.address || null, user.cuil, req.body.appversion || null,
-                    req.body.sessionId, req.liveness.Confidence]
+                    req.body.sessionId, req.liveness.Confidence, auditor, auditor]
             );
         }
         await VIDA_DB.sync_query('UPDATE usuario SET fecha_valida = NOW(), id_device = ? WHERE id_usuario = ?', [req.body.idDevice || user.id_device, user.id_usuario]);

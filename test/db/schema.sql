@@ -26,6 +26,6 @@ CREATE TABLE auditoria (
   id_device VARCHAR(500) NULL, similitud DOUBLE NULL, empresa VARCHAR(50) NULL,
   latitud VARCHAR(30) NULL, longitud VARCHAR(30) NULL, version VARCHAR(50) NULL, os VARCHAR(100) NULL,
   direccion VARCHAR(500) NULL, cuil VARCHAR(15) NULL, appversion VARCHAR(30) NULL,
-  session_id VARCHAR(100) NULL, liveness_confidence DOUBLE NULL, auditor VARCHAR(255) NULL,
+  session_id VARCHAR(100) NULL, liveness_confidence DOUBLE NULL, auditor VARCHAR(255) NULL, fechaAuditoria DATE NULL,
   KEY (id_usuario), KEY (session_id)
 );

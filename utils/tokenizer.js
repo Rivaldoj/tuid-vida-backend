@@ -6,7 +6,12 @@ const jwtData = CONFIG.get('jwt');
 const crypto = require('crypto');
 
 const algorithm = 'aes-256-ctr';
-const secretKey = '***REMOVED***';
+// La clave de cifrado AES debe venir de la configuracion (`security.aesKey`, 32 caracteres). Mientras no este configurada
+// se usa la clave historica para no invalidar lo ya cifrado; al rotarla hay que re-cifrar los datos existentes.
+const LEGACY_AES_KEY = '***REMOVED***';
+const secretKey = (CONFIG.has('security.aesKey') && String(CONFIG.get('security.aesKey')).length === 32)
+    ? CONFIG.get('security.aesKey')
+    : (console.warn('[SEGURIDAD] security.aesKey no configurada: se usa la clave AES historica. Configurar y rotar.'), LEGACY_AES_KEY);
 
 module.exports.encrypt  = (text) => {
 

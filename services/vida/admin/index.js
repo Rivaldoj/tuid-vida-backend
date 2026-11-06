@@ -8,6 +8,7 @@ const payments = require('./payments');
 const utils = require('./utils');
 const tickets = require('./ticket');
 const auditoria = require('./auditoria');
+const configuracion = require('./configuracion');
 const manuales = require('./manuales');
 const forms = require('./forms');
 const sisa = require('./sisa');
@@ -24,6 +25,7 @@ module.exports = {
     utils,
     tickets,
     auditoria,
+    configuracion,
     manuales,
     forms,
     sisa

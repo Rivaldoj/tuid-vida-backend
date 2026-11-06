@@ -104,6 +104,10 @@ router.get('/auth/auditoria/registraciones/:id_usuario/alert', adminMiddleware,h
 router.get('/auth/auditoria/sendMail', adminMiddleware,hasPermission("AUDITORIA"), services.auditoria.sendEmail);
 router.delete('/auth/auditoria/validaciones/:id_validacion', adminMiddleware,hasPermission("AUDITORIA"), services.validations.delete);
 
+//CONFIGURACION (solo Administrador de TUID)
+router.get('/auth/configuracion/auditoria', adminMiddleware, hasPermission("CONFIGURACION"), services.configuracion.getAuditoria);
+router.post('/auth/configuracion/auditoria', adminMiddleware, hasPermission("CONFIGURACION"), services.configuracion.setAuditoria);
+
 //REGISTROMANUAL
 router.get('/auth/manuales', adminMiddleware, hasPermission("REGISTROMANUAL"), services.manuales.list);//PROBAR
 router.get('/auth/manuales/accept/:idUsuario', adminMiddleware, hasPermission("REGISTROMANUAL"), services.manuales.accept);//DESARROLLAR
