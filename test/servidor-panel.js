@@ -45,6 +45,8 @@ async function sembrar() {
     await q(require('fs').readFileSync(path.join(__dirname, '../scripts/sql/configuracion.sql'), 'utf8'));
     await q("UPDATE configuracion SET valor = 'ON' WHERE clave = 'auditoria_certificaciones'");
     // tablas del Modulo de Textos (migracion de produccion, aplicada solo en la BD local de prueba)
+    await q('DROP TABLE IF EXISTS fotos_enlaces;');
+    await q(require('fs').readFileSync(path.join(__dirname, '../scripts/sql/fotos_enlaces.sql'), 'utf8'));
     await q('DROP TABLE IF EXISTS textos_historial; DROP TABLE IF EXISTS textos;');
     await q(require('fs').readFileSync(path.join(__dirname, '../scripts/sql/textos.sql'), 'utf8'));
     const { ana, beto, carlos, dora } = PERSONAS;
@@ -78,6 +80,18 @@ app.post('/vida/admin/login', (req, res) => {
 });
 // el aviso de creditos de SMS consulta un servicio externo: en la prueba local se responde vacio
 app.get('/vida/admin/auth/webnotifications', (req, res) => res.status(200).json({ error: 0, data: [] }));
+// Correo de Auditoria y pagina de la foto, con firma de foto y envio de PRUEBA (no usan AWS): el ultimo correo se puede ver en /preview/correo
+const FOTO_DE_EJEMPLO = 'https://tuid.ar/images/logos/Logo-vida30.png';
+let ultimoCorreo = null;
+const adminMw = require('../middleware/vidaAdmin');
+app.post('/vida/admin/auth/auditoria/enviar-correo', adminMw, require('../services/vida/admin/correos').crearEnviarCorreo({
+    db: { sync_query: (...a) => VIDA_DB.sync_query(...a) },
+    firmarFoto: () => FOTO_DE_EJEMPLO,
+    enviar: async (html, asunto, para) => { ultimoCorreo = { html, asunto, para }; },
+    urlBase: () => 'http://localhost:3004'
+}));
+app.get('/preview/correo', (req, res) => res.send(ultimoCorreo ? ultimoCorreo.html : '<p>Todavia no se envio ningun correo de prueba.</p>'));
+app.use('/vida/f', require('../services/vida/fotos')({ db: { sync_query: (...a) => VIDA_DB.sync_query(...a) }, firmarFoto: () => FOTO_DE_EJEMPLO }));
 app.use('/vida/admin', require('../routes/vidaAdmin').router);
 
 const dist = 'C:/TUID/panel-vida/fuente/dist/panel';

@@ -120,6 +120,17 @@ router.delete('/auth/auditoria/validaciones/:id_validacion', adminMiddleware,has
 router.get('/auth/configuracion/auditoria', adminMiddleware, hasPermission("CONFIGURACION"), services.configuracion.getAuditoria);
 router.post('/auth/configuracion/auditoria', adminMiddleware, hasPermission("CONFIGURACION"), services.configuracion.setAuditoria);
 
+//CORREO DE AUDITORIA con la foto de la certificacion (texto del Modulo de Textos)
+router.post('/auth/auditoria/enviar-correo', adminMiddleware, hasPermission("AUDITORIA"), require('../services/vida/admin/correos').crearEnviarCorreo({
+  db: { sync_query: (...args) => VIDA_DB.sync_query(...args) },
+  firmarFoto: (clave, segundos) => new (require('aws-sdk').S3)().getSignedUrl('getObject', { Bucket: CONFIG.get('vida').bucketName, Key: clave, Expires: segundos }),
+  enviar: async (html, asunto, para) => {
+    const soporte = CONFIG.get('vida').supportContact;
+    require('../utils/mail').sendHtml(html, para, asunto, soporte, [soporte]);
+  },
+  urlBase: () => services.textos.urlBasePublica()
+}));
+
 //TEXTOS (mensajes de WhatsApp, correos y notificaciones): leer y armar contactos = Auditoria / Notificaciones / Textos; editar = solo Administrador (TEXTOS)
 router.get('/auth/textos', adminMiddleware, hasAnyPermission(["TEXTOS","AUDITORIA","NOTIFICACIONES"]), services.textos.list);
 router.get('/auth/textos/contacto', adminMiddleware, hasAnyPermission(["TEXTOS","AUDITORIA"]), services.textos.contacto);

@@ -51,6 +51,12 @@ module.exports = function (app) {
     app.use('/authenticator/admin', authenticatorAdmin.router);
     app.use('/authenticator',[whiteBrandAuth], authenticator.router);
     app.use('/vida/admin', vidaAdmin.router);
+    // Pagina publica "Su foto de la certificacion" (enlace que vence + ultimos 3 digitos del CUIL). Ver services/vida/fotos.js
+    app.use('/vida/f', require('../services/vida/fotos')({
+      db: { sync_query: (...args) => VIDA_DB.sync_query(...args) },
+      requiereCuil: CONFIG.has('vida.fotoRequiereCuil') && CONFIG.get('vida.fotoRequiereCuil') === true,
+      firmarFoto: (clave, segundos) => new (require('aws-sdk').S3)().getSignedUrl('getObject', { Bucket: CONFIG.get('vida').bucketName, Key: clave, Expires: segundos })
+    }));
     
 
     app.post('/validaciones', validations.validations);

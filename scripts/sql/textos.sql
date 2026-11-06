@@ -28,7 +28,7 @@ CREATE TABLE IF NOT EXISTS textos_historial (
 -- Textos iniciales (se pueden editar o desactivar desde el panel)
 INSERT IGNORE INTO textos (clave, canal, nombre, asunto, cuerpo, actualizado_por, actualizado_en) VALUES
 ('AUDITORIA_OBSERVADA_WHATSAPP', 'whatsapp', 'Certificación observada (WhatsApp)', NULL,
- 'Hola {{nombre}}, le escribimos de TuID Vida. Su certificación de Fe de Vida del {{fecha}} fue observada y necesitamos que la realice nuevamente. Puede hacerlo desde la aplicación, en un lugar con buena luz y sin anteojos. Ante cualquier duda respondanos por este medio.', 'migracion', NOW()),
+ 'Hola {{nombre}}, le escribimos de TuID Vida. Su certificación de Fe de Vida del {{fecha}} fue observada y necesitamos que la realice nuevamente. Puede ver su foto acá: {{enlace_foto}} (el enlace vence en 7 días). Puede repetir su Fe de Vida desde la aplicación, en un lugar con buena luz y sin anteojos. Ante cualquier duda respondanos por este medio.', 'migracion', NOW()),
 ('AUDITORIA_OBSERVADA_EMAIL', 'email', 'Certificación observada (correo)', 'TuID Vida: necesitamos que repita su Fe de Vida',
  'Hola {{nombre}} {{apellido}},\n\nLe escribimos de TuID Vida. Su certificación de Fe de Vida del {{fecha}} fue observada por no cumplir con las condiciones de calidad requeridas.\n\nLe pedimos que la realice nuevamente desde la aplicación, en un lugar con buena luz y sin anteojos.\n\nSi tiene alguna duda, responda este correo.\n\nSaludos,\nEquipo TuID Vida', 'migracion', NOW()),
 ('REGISTRO_INCOMPLETO_WHATSAPP', 'whatsapp', 'Registración incompleta (WhatsApp)', NULL,

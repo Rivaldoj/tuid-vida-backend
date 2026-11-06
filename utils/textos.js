@@ -1,6 +1,6 @@
 // Utilidades del Modulo de Textos: reemplazo de variables y enlaces de WhatsApp / correo. Funciones puras (sin base de datos).
 
-const VARIABLES = ['nombre', 'apellido', 'nombre_completo', 'cuil', 'empresa', 'fecha', 'auditor'];
+const VARIABLES = ['nombre', 'apellido', 'nombre_completo', 'cuil', 'empresa', 'fecha', 'auditor', 'enlace_foto'];
 
 // Datos de ejemplo para la vista previa en el panel
 const EJEMPLO = {
@@ -10,7 +10,8 @@ const EJEMPLO = {
     cuil: '27-11111111-7',
     empresa: 'BANCO DE EJEMPLO',
     fecha: '06/11/2026',
-    auditor: 'auditor@tuid.test'
+    auditor: 'auditor@tuid.test',
+    enlace_foto: 'https://api.autenticartuid.com/vida/f/EjemploDeEnlace1234567'
 };
 
 // Reemplaza {{variable}} por su valor. Es un reemplazo de texto: no se ejecuta nada de lo que haya en la plantilla.
@@ -75,4 +76,17 @@ function capitalizar(texto) {
     return String(texto || '').toLowerCase().replace(/(^|\s)([a-záéíóúüñ])/g, (m, a, b) => a + b.toUpperCase());
 }
 
-module.exports = { VARIABLES, EJEMPLO, render, telefonoWhatsApp, urlWhatsApp, urlMailto, emailValido, formatoFecha, formatoCuil, capitalizar };
+// Texto plano -> HTML seguro para el cuerpo de un correo: se escapa todo, los parrafos van separados por lineas en blanco,
+// los saltos simples pasan a <br> y los enlaces https se vuelven clicables.
+function escaparHtml(texto) {
+    return String(texto == null ? '' : texto)
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+function aParrafosHtml(texto) {
+    const limpio = escaparHtml(String(texto == null ? '' : texto).replace(/\r\n/g, '\n'));
+    const conEnlaces = limpio.replace(/(https:\/\/[^\s<]+)/g, (url) => '<a href="' + url + '" style="color:#006e7b">' + url + '</a>');
+    return conEnlaces.split(/\n{2,}/).map((p) => '<p style="margin:0 0 14px 0">' + p.replace(/\n/g, '<br>') + '</p>').join('');
+}
+
+module.exports = { escaparHtml, aParrafosHtml, VARIABLES, EJEMPLO, render, telefonoWhatsApp, urlWhatsApp, urlMailto, emailValido, formatoFecha, formatoCuil, capitalizar };

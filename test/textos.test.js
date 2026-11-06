@@ -24,6 +24,8 @@ assert.strictEqual(t.telefonoWhatsApp('5491123443283'), '5491123443283');
 assert.strictEqual(t.telefonoWhatsApp('011 2344-3283'), '5491123443283'.replace('5491123443283', '549112344328' + '3'));
 assert.strictEqual(t.telefonoWhatsApp('1123443283'), '5491123443283');
 assert.strictEqual(t.telefonoWhatsApp('541123443283'), '5491123443283', '54 sin el 9 de celular: se agrega');
+assert.strictEqual(t.telefonoWhatsApp('5491123443283'), '5491123443283', 'formato de la registracion (549 + numero): no se toca');
+assert.strictEqual(t.telefonoWhatsApp('549110000000'), '549110000000');
 assert.strictEqual(t.telefonoWhatsApp('123'), null);
 assert.strictEqual(t.telefonoWhatsApp(null), null);
 

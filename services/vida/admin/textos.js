@@ -1,4 +1,15 @@
 const textos = require('../../../utils/textos');
+const fotos = require('../../../utils/fotos');
+
+// Direccion publica del servidor para los enlaces que se mandan a las personas (configuracion `vida.publicUrl`)
+function urlBasePublica() {
+    try {
+        const v = CONFIG.has('vida.publicUrl') ? String(CONFIG.get('vida.publicUrl')) : '';
+        if (/^https:\/\/[^\s/]+$/.test(v.replace(/\/+$/, ''))) return v.replace(/\/+$/, '');
+    } catch (e) { /* sin configuracion: se usa la direccion por defecto */ }
+    return 'https://api.autenticartuid.com';
+}
+module.exports.urlBasePublica = urlBasePublica;
 
 const CANALES = ['whatsapp', 'email', 'push'];
 const MAX_CUERPO = 4000;
@@ -160,6 +171,12 @@ module.exports.contacto = async (req, res) => {
             cuil: textos.formatoCuil(p.cuil), empresa: p.empresa || '', fecha: textos.formatoFecha(p.fecha),
             auditor: String(p.auditor || '').replace(/^ALERTA:/, '')
         };
+        // Si el texto usa {{enlace_foto}} se crea un enlace propio (vence y pide los ultimos digitos del CUIL) a la foto de ESTA certificacion
+        if (tipo === 'validacion' && /\{\{\s*enlace_foto\s*\}\}/i.test(String(texto.cuerpo) + String(texto.asunto || ''))) {
+            const [vinculo] = await VIDA_DB.sync_query('SELECT id_usuario FROM auditoria WHERE id_validacion = ?', [id]);
+            const enlace = await fotos.crearEnlace(VIDA_DB, { idValidacion: id, idUsuario: vinculo.id_usuario, creadoPor: req.user && req.user.email });
+            datos.enlace_foto = urlBasePublica() + '/vida/f/' + enlace.codigo;
+        }
         const cuerpo = textos.render(texto.cuerpo, datos).texto;
         const asunto = textos.render(texto.asunto, datos).texto;
         const data = { canal: texto.canal, asunto, texto: cuerpo, persona: datos.nombre_completo, whatsapp: null, email: null, avisos: [] };

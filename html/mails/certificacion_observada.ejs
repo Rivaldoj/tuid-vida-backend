@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title><%= title %></title>
+</head>
+<body style="margin:0;padding:0;background:#f2f6f7;font-family:Arial,Helvetica,sans-serif;color:#2b2a2a;">
+<table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#f2f6f7;">
+  <tr><td align="center" style="padding:20px 10px;">
+    <table width="640" cellpadding="0" cellspacing="0" border="0" style="max-width:640px;width:100%;background:#ffffff;border-radius:8px;">
+      <tr><td align="center" style="padding:22px 20px 8px 20px;">
+        <a href="https://tuid.ar/productos/tuid-vida" target="_blank"><img src="https://tuid.ar/images/logos/Logo-vida30.png" alt="TuID Vida" width="170" style="display:block;border:0;height:auto;"></a>
+      </td></tr>
+      <tr><td style="padding:10px 28px 4px 28px;font-size:17px;line-height:1.5;">
+        <p style="margin:0 0 14px 0;"><strong>CUIL:</strong> <%= cuil %></p>
+        <%- cuerpoHtml %>
+      </td></tr>
+<% if (fotoUrl) { %>
+      <tr><td align="center" style="padding:4px 28px 14px 28px;">
+        <p style="margin:0 0 8px 0;font-size:16px;color:#555;">Esta es la foto de su certificación del <strong><%= fecha %></strong>:</p>
+        <img src="<%= fotoUrl %>" alt="Foto de su certificación" width="320" style="display:block;border:0;max-width:100%;height:auto;border-radius:6px;">
+        <p style="margin:8px 0 0 0;font-size:14px;color:#777;">Si no reconoce esta foto, escríbanos de inmediato por WhatsApp.</p>
+      </td></tr>
+<% } %>
+      <tr><td style="padding:6px 28px 20px 28px;font-size:16px;line-height:1.5;">
+        <p style="margin:0;">Departamento de Auditoría<br><strong>Autenticar TuID SAS</strong><br><a href="https://tuid.ar" target="_blank" style="color:#006e7b;">www.tuid.ar</a></p>
+      </td></tr>
+      <tr><td align="center" style="background:#e9f6f8;padding:16px 20px;border-radius:0 0 8px 8px;">
+        <p style="margin:0 0 8px 0;font-size:16px;"><strong>Si tiene dificultades, estos son nuestros canales de ayuda</strong></p>
+        <a target="_blank" href="https://api.whatsapp.com/send?phone=5491123443283&amp;text=Quiero%20recibir%20soporte%20sobre%20TuID%20Vida"><img src="https://tuid.ar/images/iconos/IF/Whatsapp.png" alt="WhatsApp" width="48" height="48" style="border:0;"></a>
+        <p style="margin:6px 0 0 0;font-size:17px;"><a href="https://api.whatsapp.com/send?phone=5491123443283&amp;text=Quiero%20recibir%20soporte%20sobre%20TuID%20Vida" target="_blank" style="color:#333;text-decoration:none;">+54 (911) 2344-3283</a></p>
+        <p style="margin:2px 0 0 0;font-size:14px;color:#555;">Lunes a viernes de 9 a 18 hs (solo texto)</p>
+      </td></tr>
+    </table>
+  </td></tr>
+</table>
+</body>
+</html>

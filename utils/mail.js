@@ -62,6 +62,13 @@ const sendTemplatedEmail = (template, to, title, from, cc) =>{
 }
 
 
+// Envia un HTML ya armado (por ejemplo el correo de Auditoria con la foto de la certificacion)
+const sendHtml = (html, to, title, from, cc) => {
+  if(TESTING) return;
+  sendTemplatedEmail(html, to, title, from, cc);
+}
+
 module.exports = {
-  send
+  send,
+  sendHtml
   }

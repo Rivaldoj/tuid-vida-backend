@@ -50,6 +50,21 @@ Mensajes de WhatsApp, correos y notificaciones push editables por el Administrad
 - **Pruebas:** `node test/textos.test.js` (variables, teléfonos, enlaces) y `node test/db/textos.test.js` (alta, validaciones, historial, restaurar, contacto, permiso).
 - Pendiente: los botones de WhatsApp/correo en la ficha de Auditoría y el combo de mensajes prearmados en Notificaciones (canal `push`) usan estos textos.
 
+## 0.b WhatsApp y correo con la foto de la certificación objetada (2026-11-06) — HECHO (probado en la BD local y en el panel, no desplegado)
+Desde la ficha de Auditoría (solo certificaciones/validaciones) el auditor elige un texto del Módulo de Textos y manda WhatsApp o correo con la
+**foto de la última Fe de Vida** (`login/<dni><sexo>.jpeg`, la segunda foto de la ficha), que es la certificación que se objeta.
+- **Correo:** botón con el sobre. El servidor envía por SES un correo HTML con el logo de TuID Vida, el texto del Módulo de Textos (texto plano escapado, sin HTML
+  inyectable), la foto incrustada (URL firmada de S3, vence a los 7 días) y los canales de ayuda. Copia a Soporte, igual que el correo de fraude. Marca `Mail:observada(fecha)`
+  en `usuario.extra`. Plantilla: `html/mails/certificacion_observada.ejs`. Ruta: `POST /vida/admin/auth/auditoria/enviar-correo`.
+- **WhatsApp:** botón verde. Abre `wa.me` en una pestaña nueva con el texto y un enlace corto propio `https://api.autenticartuid.com/vida/f/<código>`
+  (variable `{{enlace_foto}}`). Teléfonos en formato `549…` (el de la registración, validado por SMS) se usan tal cual.
+- **Página de la foto** (`/vida/f/:código`, pública): código largo no adivinable, vence a los 7 días (tope), registra cada acceso, sin cache ni indexación, foto firmada de 10 minutos.
+  Por defecto NO pide el CUIL (el teléfono se valida por SMS en la registración); si se quisiera, `vida.fotoRequiereCuil = true` pide los últimos 3 dígitos y bloquea a los 5 intentos.
+- **Legal:** al registrarse la persona acepta los términos y autoriza el uso de sus datos biométricos; el sistema es opcional.
+- **Tablas nuevas:** `fotos_enlaces` (`scripts/sql/fotos_enlaces.sql`), además de `configuracion` y `textos`.
+- **Pruebas:** `node test/db/fotos.test.js`, `node test/db/correos.test.js`, `node test/textos.test.js`.
+- Requisitos para producción: crear las tablas, dirección de envío verificada en SES, `vida.publicUrl` si el dominio público cambia.
+
 ## 2. Botones WhatsApp / email en la ficha de auditoría
 - La pantalla del panel de administración NO está en este repositorio (el backend solo expone la API).
 - Propuesta: endpoint `GET /vida/admin/auth/auditoria/contacto/:id_validacion` que devuelve los datos del usuario y los enlaces
