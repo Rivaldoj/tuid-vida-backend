@@ -26,7 +26,7 @@ Module._load = function (req) {
     return orig.apply(this, arguments);
 };
 
-const pool = mysql.createPool({ host: '127.0.0.1', port: 3307, user: 'root', password: '', database: 'vida_test' });
+const pool = mysql.createPool({ host: '127.0.0.1', port: 3307, user: 'root', password: '', database: 'vida_test', multipleStatements: true });
 global.VIDA_DB = pool;
 global.VIDA_DB.sync_query = util.promisify(pool.query).bind(pool);
 const q = (sql, p) => VIDA_DB.sync_query(sql, p);
@@ -36,6 +36,9 @@ const adminUser = require('../services/vida/admin/user');
 const { PERSONAS } = require('./db/setup');
 
 async function sembrar() {
+    // tablas del interruptor de auditoria (migracion de produccion, aplicada solo en la BD local de prueba)
+    await q(require('fs').readFileSync(path.join(__dirname, '../scripts/sql/configuracion.sql'), 'utf8'));
+    await q("UPDATE configuracion SET valor = 'ON' WHERE clave = 'auditoria_certificaciones'");
     const { ana, beto, carlos, dora } = PERSONAS;
     await q("INSERT IGNORE INTO empresa (id, tipo, periodicidad) VALUES ('OTRABANCO','D',6)");
     await q("UPDATE usuario SET auditor='aud1@tuid.test', empresa='TESTBANCO' WHERE cuil IN (?, ?)", [ana.cuil, carlos.cuil]);
