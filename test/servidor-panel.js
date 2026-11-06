@@ -26,6 +26,10 @@ Module._load = function (req) {
     return orig.apply(this, arguments);
 };
 
+// En la prueba local faltan tablas de produccion que usan otras pantallas del panel: un error de esas pantallas no debe tirar el servidor
+process.on('unhandledRejection', (e) => console.log('[prueba local] error no atendido:', e && e.message));
+process.on('uncaughtException', (e) => console.log('[prueba local] excepcion:', e && e.message));
+
 const pool = mysql.createPool({ host: '127.0.0.1', port: 3307, user: 'root', password: '', database: 'vida_test', multipleStatements: true });
 global.VIDA_DB = pool;
 global.VIDA_DB.sync_query = util.promisify(pool.query).bind(pool);
@@ -36,6 +40,7 @@ const adminUser = require('../services/vida/admin/user');
 const { PERSONAS } = require('./db/setup');
 
 async function sembrar() {
+    await q('CREATE TABLE IF NOT EXISTS alertas (id INT AUTO_INCREMENT PRIMARY KEY, cuil VARCHAR(15), comentarios VARCHAR(500), fecha DATETIME)');
     // tablas del interruptor de auditoria (migracion de produccion, aplicada solo en la BD local de prueba)
     await q(require('fs').readFileSync(path.join(__dirname, '../scripts/sql/configuracion.sql'), 'utf8'));
     await q("UPDATE configuracion SET valor = 'ON' WHERE clave = 'auditoria_certificaciones'");
