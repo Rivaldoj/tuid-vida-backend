@@ -1,4 +1,5 @@
 const person = require('../padron/person');
+const cuilUtil = require('../../utils/cuil');
 
 const PAYMENTS_QUERY = "select if(curdate() >= b.fechaActual, b.fechaProxima, b.fechaActual) as fechaActual, b.cuil, b.fechaProxima , b.caja , b.IDEntidad , b.id  from beneficiario b join entidad_pagadora ep on (ep.IDEntidad = b.IDEntidad) join banco bco on (bco.IDBanco = ep.IDBanco) where b.cuil in (?) and b.fechaProxima > curdate()";
 
@@ -7,12 +8,20 @@ module.exports.getPayments = async (req,res,next) => {
         "error": 1,
         "message": ""
     };
-    if (!req.query.dni || !['M', 'F'].includes(req.query.sexo)){
-       res.response.message = "Es necesario enviar el DNI y género del usuario";
+    // Camino nuevo: por CUIL. Camino anterior (apps viejas y panel admin): DNI + sexo.
+    const byCuilParam = req.query.cuil !== undefined && req.query.cuil !== '';
+    if (byCuilParam && !cuilUtil.isValid(req.query.cuil)) {
+        res.response.message = "El CUIL ingresado no es válido";
+        return res.status(200).json(res.response);
+    }
+    if (!byCuilParam && (!req.query.dni || !['M', 'F'].includes(req.query.sexo))){
+       res.response.message = "Es necesario enviar el CUIL del usuario";
        return res.status(200).json(res.response);
     }
     try {
-        const people = await person.findPeople(req.query.dni, req.query.sexo);
+        const people = byCuilParam
+            ? [await person.findByCuil(cuilUtil.normalize(req.query.cuil))].filter(Boolean)
+            : await person.findPeople(req.query.dni, req.query.sexo);
         const byCuil = new Map(people.map((row) => [String(row.CUIL), row]));
         const docs = byCuil.size > 0 ? await NEW_MASTER_DB.sync_query(PAYMENTS_QUERY, [[...byCuil.keys()]]) : [];
         res.response.error = 0;

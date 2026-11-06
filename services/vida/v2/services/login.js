@@ -4,13 +4,20 @@ const mail = require('../../../../utils/mail');
 const tokenizer = require('../../../../utils/tokenizer');
 const vidaLogin = require('../../login');
 const shared = require('./shared');
+const cuilUtil = require('../../../../utils/cuil');
+
+// Filtros para ubicar a la persona. El CUIL es el identificador valido ante los organismos previsionales
+// y fiscales y evita el problema de los DNI duplicados y del prefijo que ya no indica el sexo.
+// DNI + sexo se mantiene solo para las versiones anteriores de la app.
+const FILTER_BY_CUIL = 'u.cuil = ?';
+const FILTER_BY_DNI = 'u.dni = ? and u.sexo = ?';
 
 const rekognition = new AWS.Rekognition();
 const tuidVidaConfig = CONFIG.get('vida');
 
 // Estado de Fe de Vida por empresa del usuario. La última certificación se une por usuario y empresa,
 // para que las empresas sin certificar sigan apareciendo como PENDING aunque otra ya esté certificada.
-const SEARCH_DNI_QUERY = `
+const searchQuery = (filter) => `
     SELECT distinct u.id_usuario,
     ue.empresa,
     u.auditor,
@@ -48,14 +55,14 @@ const SEARCH_DNI_QUERY = `
             select * from (
                 select row_number() over(partition by a2.empresa order by a2.fecha desc) as auxi, a2.id_usuario, a2.fecha as afecha, a2.empresa, a2.auditor as auditor2, a2.similitud
                 from auditoria a2 join usuario u on (u.id_usuario = a2.id_usuario)
-                where u.dni = ? and u.sexo = ? and a2.similitud > 1
+                where ${filter} and a2.similitud > 1
             ) as asd
             where asd.auxi = 1
         ) as a on (u.id_usuario = a.id_usuario and a.empresa = ue.empresa)
-    WHERE u.fecha_fallecido is null and u.dni = ? and u.sexo = ?
+    WHERE u.fecha_fallecido is null and ${filter}
     order by next asc`;
 
-const PENDING_QUERY = `select * from (${SEARCH_DNI_QUERY}) auxi where auxi.status = 'PENDING' or auxi.auditor2 like '%ALERTA%'`;
+const pendingQuery = (filter) => `select * from (${searchQuery(filter)}) auxi where auxi.status = 'PENDING' or auxi.auditor2 like '%ALERTA%'`;
 
 const VALIDATION_QUERY = `SELECT
     u.id_usuario, u.nombre, u.apellido, u.dni, u.sexo, u.nacimiento, date(now()) as hoy, ue.empresa, u.id_device, u.cuil, e.img, e.link,
@@ -96,22 +103,38 @@ module.exports.searchdni = async (req, res, next) => {
         res: 'error',
         status: 200
     };
-    const dni = cleanDoc(String(req.body.dni || ''));
-    const sexo = req.body.sexo;
-    if (!dni || !sexo) {
-        return sendError(res, 'Faltan datos requeridos: dni, sexo');
+    // Camino nuevo: CUIL. Camino anterior (apps viejas): DNI + sexo.
+    let filter;
+    let params;
+    if (req.body.cuil !== undefined && req.body.cuil !== null && req.body.cuil !== '') {
+        const cuil = cuilUtil.normalize(req.body.cuil);
+        if (!cuilUtil.isValid(cuil)) {
+            return sendError(res, 'El CUIL ingresado no es válido. Revise los números e inténtelo nuevamente.');
+        }
+        req.body.cuil = cuil;
+        filter = FILTER_BY_CUIL;
+        params = [cuil, cuil];
+    } else {
+        const dni = cleanDoc(String(req.body.dni || ''));
+        const sexo = req.body.sexo;
+        if (!dni || !sexo) {
+            return sendError(res, 'Faltan datos requeridos: cuil');
+        }
+        req.body.dni = dni;
+        filter = FILTER_BY_DNI;
+        params = [dni, sexo, dni, sexo];
     }
-    req.body.dni = dni;
 
     let rows;
     try {
-        rows = await VIDA_DB.sync_query(SEARCH_DNI_QUERY, [dni, sexo, dni, sexo]);
+        rows = await VIDA_DB.sync_query(searchQuery(filter), params);
     } catch (err) {
         console.log(err);
         return sendError(res, 'Error de conexión con la base de datos', err);
     }
 
     if (rows.length === 0) {
+        res.response.registration = 'NOT_REGISTERED';   // la app lo usa para ofrecer "Registrarse"
         return sendError(res, 'No hemos podido autenticar su identidad.\nPreviamente debe registrarse.\nSi ya lo ha hecho comuníquese mediante el formulario de contacto');
     }
     if (rows[0].empresa == null) {
@@ -251,7 +274,8 @@ module.exports.saveLogin = async (req, res, next) => {
     let emps;
     let pendingTasks;
     try {
-        emps = await VIDA_DB.sync_query(PENDING_QUERY, [user.dni, user.sexo, user.dni, user.sexo]);
+        // Por CUIL (el usuario ya fue identificado): evita mezclar a dos personas con el mismo DNI y sexo
+        emps = await VIDA_DB.sync_query(pendingQuery(FILTER_BY_CUIL), [user.cuil, user.cuil]);
         const empresas = emps.length > 0 ? emps.map((e) => e.empresa) : [null];
         for (const empresa of empresas) {
             await VIDA_DB.sync_query(
@@ -313,3 +337,6 @@ module.exports.saveLogin = async (req, res, next) => {
     vidaLogin.verifyLife(user.dni, user.sexo, user.cuil);
     return res.status(200).json(res.response);
 }
+
+// Consultas compartidas con account.js (consulta de registro e historial)
+module.exports.queries = { searchQuery, FILTER_BY_CUIL };

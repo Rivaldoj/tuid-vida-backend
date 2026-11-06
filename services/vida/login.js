@@ -9,6 +9,7 @@ const tokenizer = require('./../../utils/tokenizer');
 const { response } = require('express');
 const c = require('config');
 const person = require('../padron/person');
+const cuilUtil = require('./../../utils/cuil');
 
 module.exports.login2 = (req, res, next) => {
     res.response = {
@@ -803,9 +804,19 @@ module.exports.getCertificate = async (req, res, next) => {
         code: "10011",
         data: null
     }
-    var dni = req.query.dni;
-    var sexo = req.query.sexo;
-    VIDA_DB.query(userStatusQuery, [dni, sexo], function (err, row) {
+    // Camino nuevo: por CUIL. Camino anterior (apps viejas): DNI + sexo.
+    var statusQuery = userStatusQuery;
+    var statusParams = [req.query.dni, req.query.sexo];
+    if (req.query.cuil !== undefined && req.query.cuil !== '') {
+        if (!cuilUtil.isValid(req.query.cuil)) {
+            res.response.code = "10012";
+            res.response.message = "El CUIL ingresado no es válido";
+            return res.status(200).json(res.response);
+        }
+        statusQuery = userStatusQuery.replace('WHERE u.dni = ? and u.sexo = ?', 'WHERE u.cuil = ?');
+        statusParams = [cuilUtil.normalize(req.query.cuil)];
+    }
+    VIDA_DB.query(statusQuery, statusParams, function (err, row) {
         console.log(err);
         console.log(row);
 

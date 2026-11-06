@@ -14,6 +14,8 @@ router.use('/docs', swaggerUi.serveFiles(swaggerSpec), swaggerUi.setup(swaggerSp
 router.use(vidaAuth);
 
 router.post('/searchdni', services.login.searchdni);
+router.post('/checkregistration', services.account.checkRegistration);
+router.post('/history', services.account.history);
 router.post('/login', vidaLogin.getAddress, services.login.loadValidation, services.login.checkLiveness, services.login.compareSelfie, services.login.saveLogin);
 
 router.get('/session', services.register.session);
