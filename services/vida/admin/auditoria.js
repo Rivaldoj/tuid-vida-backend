@@ -5,39 +5,105 @@ const bucket = require('./../../../utils/bucket');
 const whatsapp = require('../../../utils/whatsapp');
 const AWS = require('aws-sdk');
 const s3 = new AWS.S3();
+// Vista de APROBADAS (estado=aprobadas): registraciones aprobadas por un auditor y validaciones aprobadas por un auditor
+// o automaticamente por la prueba de vida (auditor = 'Liveness'). Las condiciones van dentro de cada rama del UNION para no
+// recorrer toda la historia de certificaciones; siempre con limite de 100.
+function listAprobadas(req, res) {
+    function condiciones(colFecha, colEmpresas, colAuditor) {
+        var sql = "";
+        var params = [];
+        if (req.query.from) { sql += ` and date(${colFecha}) >= ?`; params.push(req.query.from); }
+        if (req.query.to) { sql += ` and date(${colFecha}) <= ?`; params.push(req.query.to); }
+        if (req.query.empresa) {
+            sql += " and (" + colEmpresas.map((c) => `${c} = ?`).join(" or ") + ")";
+            colEmpresas.forEach(() => params.push(req.query.empresa));
+        }
+        if (req.query.auditor) { sql += ` and ${colAuditor} = ?`; params.push(req.query.auditor); }
+        return { sql, params };
+    }
+    var reg = condiciones('u.fecha', ['u.empresa'], 'u.auditor');
+    var val = condiciones('a.fecha', ['a.empresa'], 'a.auditor');
+    var tipo = "";
+    var tipoParams = [];
+    if (req.query.tipo && (req.query.tipo == "registracion" || req.query.tipo == "validacion")) {
+        tipo = "and aux.tipo = ?";
+        tipoParams.push(req.query.tipo);
+    }
+    var order = (req.query.order && req.query.order == 'antiguos') ? 'asc' : 'desc';
+    var q = `select * from (
+        select u.dni, u.sexo, u.cuil, null as empresa, u.nombre, u.apellido, u.empresa empresar, 'registracion' as tipo, u.id_usuario,
+               null as id_validacion, null as fecha_validacion, u.fecha as fecha_registracion, u.fecha as fecha, u.auditor as auditor
+        from usuario u where u.auditor is not null and u.auditor not like 'ALERTA%' ${reg.sql}
+        union all
+        select u.dni, u.sexo, u.cuil, a.empresa, u.nombre, u.apellido, u.empresa empresar, 'validacion' as tipo, u.id_usuario,
+               a.id_validacion, a.fecha as fecha_validacion, u.fecha as fecha_registracion, a.fecha as fecha, a.auditor as auditor
+        from usuario u join auditoria a on (a.id_usuario = u.id_usuario and a.similitud > 1)
+        where a.auditor is not null and a.auditor not like 'ALERTA%' ${val.sql}
+    ) aux where 1=1 ${tipo}
+    order by aux.fecha ${order} limit 100`;
+    VIDA_DB.query(q, reg.params.concat(val.params, tipoParams), function (err, rows) {
+        if (err) {
+            console.log(err);
+            return res.status(400).json(res.response);
+        }
+        res.response.error = 0;
+        res.response.data = rows;
+        return res.status(200).json(res.response);
+    });
+}
+
 module.exports.list = (req,res,next) => {
-    var params = [];
+    // estado=aprobadas | pendientes (por defecto) | rechazadas (equivale a rechazados=1)
+    if (req.query.estado === 'aprobadas') return listAprobadas(req, res);
+    // Los parametros se arman en el MISMO orden en que aparecen en la consulta: fecha, empresa, filtro de auditor, tipo
+    var fechaParams = [];
     var fecha = "";
     if(req.query.from){
         fecha = `${fecha} and date(aux.fecha) >= ?`
-        params.push(req.query.from);
+        fechaParams.push(req.query.from);
     }
     if (req.query.to){
         fecha = `${fecha} and date(aux.fecha) <= ?`
-        params.push(req.query.to);
+        fechaParams.push(req.query.to);
     }
-    var filter = "0=1";
-    if (req.query.rechazados && req.query.rechazados == 1){
-        filter = `${filter} or aux.auditor like 'ALERTA%'`
-    }else{
-        filter = `${filter} or aux.auditor is null`
+    // Filtro por empresa: la de la validacion o, en las registraciones (sin validacion), la del usuario
+    var empresaClause = "";
+    var empresaParams = [];
+    if (req.query.empresa){
+        empresaClause = " and (aux.empresa = ? or (aux.empresa is null and aux.empresar = ?))";
+        empresaParams = [req.query.empresa, req.query.empresa];
+    }
+    var rechazados = (req.query.rechazados && req.query.rechazados == 1) || req.query.estado === 'rechazadas';
+    var filter;
+    var filterParams = [];
+    if (req.query.auditor){
+        // Filtro por auditor: lo que aprobo ese auditor ('Liveness' = aprobadas automaticamente por la prueba de vida) o,
+        // junto con "rechazados", lo que rechazo (se guarda como 'ALERTA:<email>')
+        filter = "aux.auditor = ?";
+        filterParams.push(rechazados ? `ALERTA:${req.query.auditor}` : req.query.auditor);
+    } else if (rechazados){
+        filter = "aux.auditor like 'ALERTA%'";
+    } else {
+        filter = "aux.auditor is null";
     }
     var order = 'desc'
     if (req.query.order && req.query.order == 'antiguos'){
         order = 'asc'
     }
     var tipo = ""
+    var tipoParams = [];
     if (req.query.tipo && (req.query.tipo == "registracion" || req.query.tipo == "validacion") ){
         tipo = "and aux.tipo = ?";
-        params.push(req.query.tipo);
+        tipoParams.push(req.query.tipo);
     }
+    var params = fechaParams.concat(empresaParams, filterParams, tipoParams);
     
     var q = `select * from 
     (select u.dni, u.sexo, u.cuil, a.empresa, u.nombre, u.apellido, u.empresa empresar,
         if(u.auditor is null || u.auditor like 'ALERTA%','registracion','validacion') as tipo, u.id_usuario, a.id_validacion, a.fecha as fecha_validacion, u.fecha  as fecha_registracion, if(u.auditor is null || u.auditor like 'ALERTA%', u.fecha, a.fecha) as fecha, if(u.auditor is null || u.auditor like 'ALERTA%',u.auditor,a.auditor) as auditor from 
 usuario u left join auditoria a on (a.id_usuario = u.id_usuario and a.similitud > 1 and u.auditor is not null and u.auditor not like 'ALERTA%' ) 
 ) aux
-where 1=1 ${fecha} and (${filter}) ${tipo}
+where 1=1 ${fecha}${empresaClause} and (${filter}) ${tipo}
 order by aux.fecha ${order} limit 100`;
 console.log(q);
     VIDA_DB.query(q,params, function(err,rows){
@@ -51,6 +117,25 @@ console.log(q);
         }
     });
 
+}
+
+// GET /auth/auditoria/filtros -> opciones para los combos "Empresa" y "Auditor" de la lista de Auditoria
+module.exports.filtros = async (req,res,next) => {
+    res.response = { error: 1, data: 'Error desconocido' };
+    try {
+        const empresas = await VIDA_DB.sync_query('SELECT id FROM empresa ORDER BY id');
+        // auditores: administradores de TUID activos + la aprobacion automatica por prueba de vida
+        const admins = await VIDA_DB.sync_query("SELECT email FROM cliente WHERE empresa = 'TUID' AND activo = 1 ORDER BY email");
+        res.response.error = 0;
+        res.response.data = {
+            empresas: empresas.map((e) => e.id),
+            auditores: admins.map((a) => a.email).concat(['Liveness'])
+        };
+    } catch (err) {
+        console.log(err);
+        res.response.data = 'No se pudieron leer las opciones de filtro';
+    }
+    return res.status(200).json(res.response);
 }
 
 module.exports.validacionOk = (req,res,next) => {

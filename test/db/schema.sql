@@ -3,13 +3,14 @@ DROP TABLE IF EXISTS auditoria;
 DROP TABLE IF EXISTS usuario_empresa;
 DROP TABLE IF EXISTS empresa;
 DROP TABLE IF EXISTS usuario;
+DROP TABLE IF EXISTS cliente;
 
 CREATE TABLE usuario (
   id_usuario INT AUTO_INCREMENT PRIMARY KEY,
   dni VARCHAR(20), sexo CHAR(1), cuil VARCHAR(15),
   nombre VARCHAR(100), apellido VARCHAR(100), nacimiento VARCHAR(20),
   estado VARCHAR(20), fecha DATETIME, fecha_fallecido DATETIME NULL,
-  auditor VARCHAR(255) NULL, id_device VARCHAR(500) NULL,
+  auditor VARCHAR(255) NULL, id_device VARCHAR(500) NULL, empresa VARCHAR(50) NULL,
   email VARCHAR(100) NULL, telefono VARCHAR(30) NULL,
   emailVrf TINYINT NULL, telefonoVrf TINYINT NULL, fecha_valida DATETIME NULL,
   KEY (cuil), KEY (dni, sexo)
@@ -29,3 +30,5 @@ CREATE TABLE auditoria (
   session_id VARCHAR(100) NULL, liveness_confidence DOUBLE NULL, auditor VARCHAR(255) NULL, fechaAuditoria DATE NULL,
   KEY (id_usuario), KEY (session_id)
 );
+
+CREATE TABLE cliente (id_usuario INT AUTO_INCREMENT PRIMARY KEY, email VARCHAR(100), empresa VARCHAR(50), rol CHAR(1), activo TINYINT DEFAULT 1);

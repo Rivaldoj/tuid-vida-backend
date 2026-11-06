@@ -97,6 +97,7 @@ router.get('/auth/reports/dashboard/validations', adminMiddleware,hasPermission(
 
 //AUDITORIA
 router.get('/auth/auditoria/validaciones', adminMiddleware,hasPermission("AUDITORIA"), services.auditoria.list);
+router.get('/auth/auditoria/filtros', adminMiddleware,hasPermission("AUDITORIA"), services.auditoria.filtros);
 router.get('/auth/auditoria/validaciones/:id_validacion/ok', adminMiddleware,hasPermission("AUDITORIA"), services.auditoria.validacionOk);
 router.get('/auth/auditoria/validaciones/:id_validacion/alert', adminMiddleware,hasPermission("AUDITORIA"), services.auditoria.validacionAlert);
 router.get('/auth/auditoria/registraciones/:id_usuario/ok', adminMiddleware,hasPermission("AUDITORIA"), services.auditoria.registracionOk);

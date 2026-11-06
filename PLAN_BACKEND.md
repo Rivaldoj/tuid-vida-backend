@@ -20,6 +20,21 @@ certificación en tiempo real y ahora esperan la aprobación. Con AWS Face Liven
   que nunca se envían. Las certificaciones auto-aprobadas ya no aparecen en la cola de pendientes de Auditoria (tienen auditor).
 - Pruebas: `node test/db/auditoria_liveness.test.js` (5 casos).
 
+### 1.b Filtros de la lista de Auditoría (2026-11-06) — HECHO (probado en la BD local, no desplegado)
+`GET /vida/admin/auth/auditoria/validaciones` ya filtraba por rango de fechas (`from`, `to`) y por rechazados (`rechazados=1`).
+Se agregan (todos combinables, con parámetros de SQL, sin concatenar texto del usuario):
+- `empresa=<id>`: la empresa de la validación o, en las registraciones, la del usuario.
+- `auditor=<email | Liveness>`: lo que aprobó ese auditor; `Liveness` = aprobadas automáticamente por la prueba de vida.
+  Junto con `rechazados=1` devuelve lo que rechazó ese auditor (se guarda como `ALERTA:<email>`).
+- `GET /vida/admin/auth/auditoria/filtros` → `{ empresas: [...], auditores: [...] }` para llenar los combos
+  (empresas de la tabla `empresa`; auditores = administradores activos de TUID + `Liveness`).
+- **Vista de aprobadas:** `estado=aprobadas` (nuevo; hasta ahora la lista solo mostraba pendientes y rechazadas). Devuelve las
+  registraciones aprobadas por un auditor y las validaciones aprobadas por un auditor o automáticamente (`Liveness`), con los
+  mismos filtros de fechas, empresa, auditor y tipo, y siempre con límite de 100. `estado=pendientes` es lo de siempre y
+  `estado=rechazadas` equivale a `rechazados=1`.
+- Falta: los dos combos en la pantalla del panel (el código del panel no está en este repositorio).
+- Pruebas: `node test/db/auditoria_filtros.test.js` (8 casos, incluido un intento de inyección).
+
 ## 2. Botones WhatsApp / email en la ficha de auditoría
 - La pantalla del panel de administración NO está en este repositorio (el backend solo expone la API).
 - Propuesta: endpoint `GET /vida/admin/auth/auditoria/contacto/:id_validacion` que devuelve los datos del usuario y los enlaces
