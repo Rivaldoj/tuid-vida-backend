@@ -74,7 +74,7 @@ app.use('/vida/admin', require('../routes/vidaAdmin').router);
 
 const dist = 'C:/TUID/panel-vida/fuente/dist/panel';
 app.use(express.static(dist, { etag: false, lastModified: false, setHeaders: (res) => res.set('Cache-Control', 'no-store') }));
-app.get('*', (req, res) => res.sendFile(path.join(dist, 'index.html')));
+app.get('*', (req, res) => { res.set('Cache-Control', 'no-store'); res.sendFile(path.join(dist, 'index.html')); });
 
 sembrar().then(() => {
     app.listen(3004, '127.0.0.1', () => console.log('Panel de prueba en http://localhost:3004 (cualquier usuario/clave)'));
