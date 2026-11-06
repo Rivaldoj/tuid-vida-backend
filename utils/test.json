@@ -1,0 +1,575 @@
+{
+    "state": "1",
+    "desc": "Documento procesado",
+    "id_internal": "0",
+    "filenames": {
+        "back": "943a278e-5ff7-4392-b257-962434f31b3f_B.jpeg",
+        "front": "943a278e-5ff7-4392-b257-962434f31b3f_F.jpeg"
+    },
+    "ocr": {
+        "back":"DOMICILIO CENTENERA 3535 - SAN JUSTO - LA MATANZA BUENOS AIRES LUGAR DE NACIMIENTO BUENOS AIRES Roblo Ltc.D.Rogelio Frigeria Ministro del Interior O. Pub y Vivienda CUIL 20-30963418-8 PUCGAR IDARG30963418<6 ن 8407225M3206098ARG< <<
+        BULACIO<<RAUL<HERNAN< DOMICILIO CENTENERA 3535 - SAN JUSTO - LA MATANZA BUENOS AIRES LUGAR DE NACIMIENTO BUENOS
+        AIRES Roblo Ltc.D.Rogelio Frigeria Ministro del Interior O. Pub y Vivienda CUIL 20-30963418-8 PUCGAR IDARG30963418<6
+        ن 8407225M3206098ARG< << BULACIO<<RAUL<HERNAN<",
+        "front":"REPUBLICA ARGENTINA - MERCOSUR 30963418 REGISTRO NACIONAL
+        DE LAS PERSONAS MINISTERIO DEL INTERIOR, OBRAS PUBLICAS Y VIVIENDA Apellido / Surname BULACIO Nombre /Name RAÚL
+        HERNAN Sexo / Sex Nacionalidad / Nationality Ejemplar В M ARGENTINA Fechade nacimiento / Date of birth 22 JUL/ JUL
+        1984 Fecha de emision / Date of issue 09 JUN/ JUN 2017 FIRMA IDENTIFICADO SIGNATURE do Fecha de vencimiento / Date
+        of expiry 09 JUN/ JUN 2032 PEPAPER EMPION Trámite N° / Of. ident. Documento / Document 00498807159 30.963.418 7014
+        REPUBLICA ARGENTINA - MERCOSUR 30963418 REGISTRO NACIONAL DE LAS PERSONAS MINISTERIO DEL INTERIOR, OBRAS PUBLICAS Y
+        VIVIENDA Apellido / Surname BULACIO Nombre /Name RAÚL HERNAN Sexo / Sex Nacionalidad / Nationality Ejemplar В M
+        ARGENTINA Fechade nacimiento / Date of birth 22 JUL/ JUL 1984 Fecha de emision / Date of issue 09 JUN/ JUN 2017
+        FIRMA IDENTIFICADO SIGNATURE do Fecha de vencimiento / Date of expiry 09 JUN/ JUN 2032 PEPAPER EMPION Trámite N° /
+        Of. ident. Documento / Document 00498807159 30.963.418 7014"
+    },
+    "pdf147":[],
+    "address_ocr":"CENTENERA 3535 SAN JUSTO LA MATANZA BUENOS AIRES",
+    "address":[{
+        "street_title":"CENTENERA",
+        "street_name":"CENTENERA",
+        "street_shortname":"CENTENERA",
+        "number":3535,
+        "neighborhood":"",
+        "locality":"SAN JUSTO",
+        "locality_short":"SAN JUSTO",
+        "department":"LA MATANZA",
+        "province":"PROVINCIA DE BUENOS AIRES",
+        "cp":"B1754",
+        "cpa":"B1754",
+        "idmax":"",
+        "longitude":-34.6931713,
+        "lattitude":-58.57042329999999
+        }],
+    "valid_pdf147":"false",
+    "valid_ocr":"false",
+    "valid_doc":"false",
+    "img_front":"https: //pdf417libraries.s3.eu-west-1.amazonaws.com/943a278e-5ff7-4392-b257-962434f31b3f_F.jpeg?AWSAccessKeyId=***REMOVED***&Expires=1677594077&Signature=***REMOVED***",
+    "img_back":"https://pdf417libraries.s3.eu-west-1.amazonaws.com/943a278e-5ff7-4392-b257-962434f31b3f_B.jpeg?AWSAccessKeyId=***REMOVED***&Expires=1677594077&Signature=***REMOVED***"
+}
+
+{
+    "state": "1",
+    "valid_doc": "false",
+    "valid_ocr": "true",
+    "img_front": "https://cont3-virtual2.certisend.com/web/container/api/v1/validations/identity/ar/dni/tmp/30311520_158848dfd1927dbf4d6373a0d6a6ae40a.jpg",
+    "img_back": "https://cont3-virtual2.certisend.com/web/container/api/v1/validations/identity/ar/dni/tmp/30311520_27e77946a44e38885b62ba7faff0b27b7.jpg",
+    "ocr": {
+        "front": {
+            "language": "es",
+            "textAngle": 0.0,
+            "orientation": "Up",
+            "regions": [
+                {
+                    "boundingBox": "292,62,458,224",
+                    "lines": [
+                        {
+                            "boundingBox": "349,62,124,17",
+                            "words": [
+                                {
+                                    "boundingBox": "349,68,56,11",
+                                    "text": "ARGENTNA"
+                                },
+                                {
+                                    "boundingBox": "409,72,3,1",
+                                    "text": "-"
+                                },
+                                {
+                                    "boundingBox": "416,62,57,12",
+                                    "text": "MERCOSUR"
+                                }
+                            ]
+                        },
+                        {
+                            "boundingBox": "292,73,200,23",
+                            "words": [
+                                {
+                                    "boundingBox": "292,86,49,10",
+                                    "text": "REGISTRO"
+                                },
+                                {
+                                    "boundingBox": "345,82,48,10",
+                                    "text": "*ACONA'"
+                                },
+                                {
+                                    "boundingBox": "397,80,13,8",
+                                    "text": "DE"
+                                },
+                                {
+                                    "boundingBox": "414,78,19,9",
+                                    "text": "LAS"
+                                },
+                                {
+                                    "boundingBox": "437,73,55,12",
+                                    "text": "PERSONAS"
+                                }
+                            ]
+                        },
+                        {
+                            "boundingBox": "350,92,68,12",
+                            "words": [
+                                {
+                                    "boundingBox": "350,96,18,8",
+                                    "text": "DEL"
+                                },
+                                {
+                                    "boundingBox": "372,92,46,10",
+                                    "text": "INTERIOR"
+                                }
+                            ]
+                        },
+                        {
+                            "boundingBox": "486,98,59,13",
+                            "words": [
+                                {
+                                    "boundingBox": "486,101,4,10",
+                                    "text": "I"
+                                },
+                                {
+                                    "boundingBox": "494,98,51,13",
+                                    "text": "Surname"
+                                }
+                            ]
+                        },
+                        {
+                            "boundingBox": "443,119,37,16",
+                            "words": [
+                                {
+                                    "boundingBox": "443,119,37,16",
+                                    "text": "PAEZ"
+                                }
+                            ]
+                        },
+                        {
+                            "boundingBox": "445,157,82,14",
+                            "words": [
+                                {
+                                    "boundingBox": "445,159,39,12",
+                                    "text": "Notnbre"
+                                },
+                                {
+                                    "boundingBox": "495,157,32,11",
+                                    "text": "Name"
+                                }
+                            ]
+                        },
+                        {
+                            "boundingBox": "445,170,132,21",
+                            "words": [
+                                {
+                                    "boundingBox": "445,175,60,16",
+                                    "text": "HERNAN"
+                                },
+                                {
+                                    "boundingBox": "514,170,63,18",
+                                    "text": "IGNACIO"
+                                }
+                            ]
+                        },
+                        {
+                            "boundingBox": "446,205,304,25",
+                            "words": [
+                                {
+                                    "boundingBox": "446,220,25,10",
+                                    "text": "Sexo"
+                                },
+                                {
+                                    "boundingBox": "475,218,4,11",
+                                    "text": "I"
+                                },
+                                {
+                                    "boundingBox": "482,218,21,11",
+                                    "text": "Sex"
+                                },
+                                {
+                                    "boundingBox": "525,213,68,14",
+                                    "text": "Nacionalíad"
+                                },
+                                {
+                                    "boundingBox": "598,212,3,12",
+                                    "text": "I"
+                                },
+                                {
+                                    "boundingBox": "606,209,67,15",
+                                    "text": "Nationality"
+                                },
+                                {
+                                    "boundingBox": "698,205,52,17",
+                                    "text": "EPmplar"
+                                }
+                            ]
+                        },
+                        {
+                            "boundingBox": "527,227,89,17",
+                            "words": [
+                                {
+                                    "boundingBox": "527,227,89,17",
+                                    "text": "ARGENTINA"
+                                }
+                            ]
+                        },
+                        {
+                            "boundingBox": "445,251,202,17",
+                            "words": [
+                                {
+                                    "boundingBox": "445,257,33,11",
+                                    "text": "F'éha"
+                                },
+                                {
+                                    "boundingBox": "482,257,13,11",
+                                    "text": "de"
+                                },
+                                {
+                                    "boundingBox": "499,255,57,12",
+                                    "text": "nacmiento"
+                                },
+                                {
+                                    "boundingBox": "568,253,27,12",
+                                    "text": "Date"
+                                },
+                                {
+                                    "boundingBox": "601,252,11,12",
+                                    "text": "Of"
+                                },
+                                {
+                                    "boundingBox": "618,251,29,12",
+                                    "text": "birth"
+                                }
+                            ]
+                        },
+                        {
+                            "boundingBox": "448,268,139,18",
+                            "words": [
+                                {
+                                    "boundingBox": "448,269,13,16",
+                                    "text": "13"
+                                },
+                                {
+                                    "boundingBox": "469,270,36,16",
+                                    "text": "NOVI"
+                                },
+                                {
+                                    "boundingBox": "514,270,31,13",
+                                    "text": "NOV"
+                                },
+                                {
+                                    "boundingBox": "555,268,32,15",
+                                    "text": "1983"
+                                }
+                            ]
+                        }
+                    ]
+                },
+                {
+                    "boundingBox": "265,375,121,49",
+                    "lines": [
+                        {
+                            "boundingBox": "331,375,53,11",
+                            "words": [
+                                {
+                                    "boundingBox": "331,375,53,11",
+                                    "text": "Document"
+                                }
+                            ]
+                        },
+                        {
+                            "boundingBox": "265,399,121,25",
+                            "words": [
+                                {
+                                    "boundingBox": "265,399,121,25",
+                                    "text": "30.311.520"
+                                }
+                            ]
+                        }
+                    ]
+                },
+                {
+                    "boundingBox": "447,292,408,132",
+                    "lines": [
+                        {
+                            "boundingBox": "447,292,187,15",
+                            "words": [
+                                {
+                                    "boundingBox": "447,296,32,11",
+                                    "text": "Fecha"
+                                },
+                                {
+                                    "boundingBox": "499,295,41,11",
+                                    "text": "emisón"
+                                },
+                                {
+                                    "boundingBox": "545,294,3,11",
+                                    "text": "I"
+                                },
+                                {
+                                    "boundingBox": "553,294,26,11",
+                                    "text": "Date"
+                                },
+                                {
+                                    "boundingBox": "585,292,11,12",
+                                    "text": "of"
+                                },
+                                {
+                                    "boundingBox": "602,293,32,11",
+                                    "text": "issue"
+                                }
+                            ]
+                        },
+                        {
+                            "boundingBox": "448,308,133,16",
+                            "words": [
+                                {
+                                    "boundingBox": "448,309,56,15",
+                                    "text": "24ENE/"
+                                },
+                                {
+                                    "boundingBox": "512,309,28,14",
+                                    "text": "JAN"
+                                },
+                                {
+                                    "boundingBox": "549,308,32,14",
+                                    "text": "2021"
+                                }
+                            ]
+                        },
+                        {
+                            "boundingBox": "667,314,188,11",
+                            "words": [
+                                {
+                                    "boundingBox": "667,316,31,9",
+                                    "text": "FIRMA"
+                                },
+                                {
+                                    "boundingBox": "703,316,23,9",
+                                    "text": "IDEN"
+                                },
+                                {
+                                    "boundingBox": "768,315,11,10",
+                                    "text": "0'"
+                                },
+                                {
+                                    "boundingBox": "786,314,36,10",
+                                    "text": "SIGNA"
+                                },
+                                {
+                                    "boundingBox": "824,314,31,10",
+                                    "text": "TURE"
+                                }
+                            ]
+                        },
+                        {
+                            "boundingBox": "484,333,184,15",
+                            "words": [
+                                {
+                                    "boundingBox": "484,333,13,12",
+                                    "text": "de"
+                                },
+                                {
+                                    "boundingBox": "502,334,62,11",
+                                    "text": "venctniento"
+                                },
+                                {
+                                    "boundingBox": "569,333,3,11",
+                                    "text": "I"
+                                },
+                                {
+                                    "boundingBox": "578,333,27,12",
+                                    "text": "Date"
+                                },
+                                {
+                                    "boundingBox": "611,333,12,12",
+                                    "text": "Of"
+                                },
+                                {
+                                    "boundingBox": "628,333,40,15",
+                                    "text": "expiry"
+                                }
+                            ]
+                        },
+                        {
+                            "boundingBox": "448,348,139,15",
+                            "words": [
+                                {
+                                    "boundingBox": "448,349,14,14",
+                                    "text": "21"
+                                },
+                                {
+                                    "boundingBox": "471,348,35,15",
+                                    "text": "ENE/"
+                                },
+                                {
+                                    "boundingBox": "514,349,30,13",
+                                    "text": "JAN"
+                                },
+                                {
+                                    "boundingBox": "553,349,34,14",
+                                    "text": "2036"
+                                }
+                            ]
+                        },
+                        {
+                            "boundingBox": "449,373,118,12",
+                            "words": [
+                                {
+                                    "boundingBox": "449,374,39,11",
+                                    "text": "Trante"
+                                },
+                                {
+                                    "boundingBox": "493,373,12,11",
+                                    "text": "NO"
+                                },
+                                {
+                                    "boundingBox": "518,374,13,11",
+                                    "text": "Of"
+                                },
+                                {
+                                    "boundingBox": "539,374,28,11",
+                                    "text": "&nt_"
+                                }
+                            ]
+                        },
+                        {
+                            "boundingBox": "449,391,95,15",
+                            "words": [
+                                {
+                                    "boundingBox": "449,391,95,15",
+                                    "text": "00646538323"
+                                }
+                            ]
+                        },
+                        {
+                            "boundingBox": "449,410,33,14",
+                            "words": [
+                                {
+                                    "boundingBox": "449,410,33,14",
+                                    "text": "7025"
+                                }
+                            ]
+                        }
+                    ]
+                }
+            ]
+        },
+        "back": {
+            "language": "es",
+            "textAngle": 0.03665191429188151,
+            "orientation": "Down",
+            "regions": [
+                {
+                    "boundingBox": "186,242,185,115",
+                    "lines": [
+                        {
+                            "boundingBox": "189,242,157,20",
+                            "words": [
+                                {
+                                    "boundingBox": "189,243,37,15",
+                                    "text": "curv:"
+                                },
+                                {
+                                    "boundingBox": "232,242,114,20",
+                                    "text": "20-30311520.'"
+                                }
+                            ]
+                        },
+                        {
+                            "boundingBox": "189,305,182,22",
+                            "words": [
+                                {
+                                    "boundingBox": "189,305,11,20",
+                                    "text": "1"
+                                },
+                                {
+                                    "boundingBox": "208,305,163,22",
+                                    "text": "DARG30311"
+                                }
+                            ]
+                        },
+                        {
+                            "boundingBox": "186,334,89,23",
+                            "words": [
+                                {
+                                    "boundingBox": "186,334,50,22",
+                                    "text": "831"
+                                },
+                                {
+                                    "boundingBox": "246,335,10,22",
+                                    "text": "1"
+                                },
+                                {
+                                    "boundingBox": "266,336,9,21",
+                                    "text": "1"
+                                }
+                            ]
+                        }
+                    ]
+                },
+                {
+                    "boundingBox": "484,231,54,22",
+                    "lines": [
+                        {
+                            "boundingBox": "484,231,54,12",
+                            "words": [
+                                {
+                                    "boundingBox": "484,231,9,11",
+                                    "text": "E"
+                                },
+                                {
+                                    "boundingBox": "511,232,27,11",
+                                    "text": "Púo"
+                                }
+                            ]
+                        },
+                        {
+                            "boundingBox": "495,243,29,10",
+                            "words": [
+                                {
+                                    "boundingBox": "495,243,29,10",
+                                    "text": "hteay"
+                                }
+                            ]
+                        }
+                    ]
+                }
+            ]
+        },
+        "address_ocr": {
+            "language": "es",
+            "textAngle": 0.038397243543875845,
+            "orientation": "Down",
+            "regions": [
+                {
+                    "boundingBox": "13,4,124,22",
+                    "lines": [
+                        {
+                            "boundingBox": "13,4,124,22",
+                            "words": [
+                                {
+                                    "boundingBox": "13,4,105,22",
+                                    "text": "RG3031"
+                                },
+                                {
+                                    "boundingBox": "128,6,9,20",
+                                    "text": "1"
+                                }
+                            ]
+                        }
+                    ]
+                }
+            ]
+        }
+    },
+    "valid_pdf147": "false",
+    "pdf147": [],
+    "address": {
+        "country": "Argentina",
+        "formatted_address": "Argentina",
+        "geometry": {
+            "location": {
+                "lat": -38.416097,
+                "lng": -63.61667199999999
+            }
+        }
+    },
+    "id_internal": ""
+}
+
+

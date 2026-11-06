@@ -1,0 +1,137 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+   <head>
+      <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+      <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+      <title>Autenticar TuID</title>
+      
+      <style type="text/css">
+         /* Client-specific Styles */ 
+         #outlook a {padding:0;} /* Force Outlook to provide a "view in browser" menu link. */
+         body{width:100% !important; -webkit-text-size-adjust:100%; -ms-text-size-adjust:100%; margin:0; padding:0;}
+         /* Prevent Webkit and Windows Mobile platforms from changing default font sizes, while not breaking desktop design. */
+         .ExternalClass {width:100%;} /* Force Hotmail to display emails at full width */
+         .ExternalClass, .ExternalClass p, .ExternalClass span, .ExternalClass font, .ExternalClass td, .ExternalClass div {line-height: 100%;} /* Force Hotmail to display normal line spacing.*/
+	     #backgroundTable {margin:0; padding:0; width:100% !important; line-height: 100% !important;}
+         img {outline:none; text-decoration:none;border:none; -ms-interpolation-mode: bicubic;}
+         a img {border:none;}
+         .image_fix {display:block;}
+         p {margin: 20px 0px !important;}
+         table td {border-collapse: collapse;}
+         table { border-collapse:collapse; mso-table-lspace:0pt; mso-table-rspace:0pt; }
+         a {color: #333333; text-decoration:none!important;}
+		 
+	  .FullTexto   {font-size: 22px;, sans-serif; color: #333333;line-height: normal;text-align:left!important;}
+	  .Titulo      {font-size: 24px;,sans-serif; color:#000000;line-height: normal;text-align:left!important; padding:15px!important;text-align:center!important}
+	  .TituloCel   {font-size: 24px;,sans-serif; color:##00acc1; vertical-align:top ; font-weight: bold; line-height: normal;text-align:left!important; padding:15px!important;text-align:center!important}
+	  .TituloCH    {font-size: 20px;,sans-serif; color:#333333;lineline-height: 30px;text-align:center!important; padding:15px!important;text-align:center!important}
+      .FullTextoCH {font-size: 12px; font-family: Helvetica, arial, sans-serif; color: #666666; text-align:center; line-height: 20px; padding-bottom: 5px}
+	  .Logo { font-family: "Arial Rounded MT Bold"; color: #006bb6; font-weight: bold }
+	  .button {display: inline-block; padding: 10px 20px; background-color:#006bb6; color: white; text-decoration: none; border-radius: 5px; }
+	  .first, .second { width: 45%; vertical-align: middle; text-align: center; max-height: auto; min-height: auto; display: inline-block; background-color: #FFF;	margin: 0px 10px; text-align:left;}
+      .first {	float: left;}
+      .second {	float: right;}
+      .third {	width: 40%;	vertical-align: middle; max-height: auto; min-height: auto; display: inline-block; background-color: #FFF; margin: 0px 10px;float:right;}
+		     }
+
+         /*STYLES*/
+         table[class=full] { width: 100%; clear: both; }
+         /*IPAD STYLES*/
+         @media only screen and (max-width: 640px) {
+         a[href^="tel"], a[href^="sms"] { color: #333; text-decoration: none; pointer-events: none; cursor: default; }
+         .mobile_link a[href^="tel"], .mobile_link a[href^="sms"] { text-decoration: default; color: #333 !important; pointer-events: auto; cursor: default; }
+         table[class=devicewidth] {width: 440px!important;text-align:center!important;}
+         table[class=devicewidthinner] {width: 420px!important;text-align:center!important;}
+         img[class=banner] {width: 440px!important;height:auto!important;}
+         img[class=colimg2] {width: 440px!important;height:auto!important;}
+	    }
+                  
+         }
+         /*IPHONE STYLES*/
+         @media only screen and (max-width: 480px) {
+         a[href^="tel"], a[href^="sms"] { text-decoration: none; color: #333333; pointer-events: none;cursor: default; }
+         .mobile_link a[href^="tel"], .mobile_link a[href^="sms"] { text-decoration: default; color: #0a8cce !important; pointer-events: auto; cursor: default;}
+         table[class=devicewidth] {width: 280px!important;text-align:center!important;}
+         table[class=devicewidthinner] {width: 260px!important;text-align:center!important;}
+         img[class=banner] {width: 280px!important;height:auto!important;}
+         img[class=colimg2] {width: 280px!important;height:auto!important;}
+         td[class=mobile-hide]{display:none!important;}
+         td[class="padding-bottom25"]{padding-bottom:25px!important;}
+         } 
+
+  
+		   }
+      </style>
+   </head>
+
+<body>
+<table width="100%" bgcolor="#ffffff" cellpadding="0" cellspacing="0" border="0" id="backgroundTable" st-sortable="preheader" >
+  <tr>
+    <td>
+	<table height="0%" border="0" align="center" cellspacing="0" class="devicewidth" style="max-width:800px; "  padcellpadding="5px"  margin-bottom: 20px>
+	  <tr>
+	    <td height="23%"  >
+	      <p  class="TituloCel">Certificado de Supervivencia </p></td>
+		  <td class="FullTexto" ><div align="right"><a href="https://tuid.ar/productos/tuid-vida" target="_blank" ><img src="https://tuid.ar/images/logos/Logo-vida30.png" alt="TuId Vida" width="150px" height="auto" align="absbottom" /></a></div></td>
+	  </tr>
+	  <tr>		
+		<td width="100%" height="auto" colspan="2" class="FullTexto"  >
+		
+
+			
+		  <p>&nbsp;</p>
+		  <p>Conste que el Sr/ra  <%= nombre %>, CUIL  <%= cuil %>, nacido/a el <%= nacimiento %>, ha realizado en forma satisfactoria su autenticacion de identidad y registro de signos vitales en forma virtual por medio de Biometria Facial e IA mediante la aplicacion <strong class="Tuid">TuID Vida</strong> el día <%= hoy %>.</p>
+		  <p>Institucion (es) para las que Certifico: </p>
+		  <blockquote>
+		    <p><%= empresas %></p>
+		    </blockquote>
+		  <!-- <p>La presente constancia se extiende digitalmente a requerimiento del interesado mediante la aplicacion <strong class="Tuid">TuID Vida</strong> el día <%= hoy %> . </p> -->
+		  <p>La informacion ha sido transmitida automaticamente a su Entidad pagadora. Por lo tanto no es necesario que realice tramite alguno, salvo que el mismo sea requerido expresamente. </p>
+		  </td>
+	  </tr>
+	  
+	  <tr>
+	    <td height="8%" colspan="2" class="FullTexto">			 
+			             
+			
+			 <p><strong class="Tuid">Autenticar TuID SAS</strong><br />
+			<a href="www.tuid.ar" target="_blank" >www.tuid.ar</a>	</p>		
+		  </td>
+	  <tr>
+	    <td height="auto" colspan="2">
+			<div  align="center" >
+			  <div class="first">
+				<P class="TituloCH">Cuidamos TU planeta</P>
+				<div align="right">De no ser necesario no imprimir			  </div>
+			  </div>
+				<div class="second">
+			  <a href="https://tuid.ar/home/sustentabilidad" target="_blank"> <img src="https://tuid.ar/images/logos/Papel-Cero1.png" alt="" width="100" height="100" hspace="10" border="0" style="display:block; border:none; outline:none; text-decoration:none;" /></a></div>
+			</div>
+			<p>&nbsp;</p>
+	      <table width="95%" align="center"  cellpadding="0" cellspacing="0" border="0" class="devicewidthinner">
+          <tbody>
+            
+            
+            <tr>
+              <td  class="TituloCH" > Garantizamos el correcto tratamiento de tus datos personales. </td>
+            </tr>
+   
+            <tr>
+              <td class="FullTextoCH"> <strong>Autenticar TuID SAS</strong> han cumplimentado los requisitos de exige la Ley N° 25.326 de Protección de Datos Personales difundida por la Dirección Nacional de Protección de Datos Personales, asumiendo el carácter de responsables registrados. Dicha ley regula cuestiones sobre la protección de datos asentados en archivos, registros, bases de datos y otros medios técnicos de tratamiento de datos, sean éstos públicos o privados, destinados a dar informes para garantizar el derecho al honor y a la intimidad de las personas, así también el acceso a la información que sobre las mismas se registre.</td>
+            </tr>
+            <!-- End of content -->
+          </tbody>
+        </table></td>
+	    </tr>
+	  <tr>
+	    <td height="0%" colspan="2"></td>
+	    </tr>
+   </table>
+
+	</td>
+  </tr>
+</table>
+
+
+</body>
+</html>

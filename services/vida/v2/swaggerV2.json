@@ -1,0 +1,594 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "TuID Vida API v2",
+    "version": "2.0.0",
+    "description": "API v2 de TuID Vida"
+  },
+  "servers": [
+    {
+      "url": "/vida/v2",
+      "description": "Vida v2"
+    }
+  ],
+  "tags": [
+    {
+      "name": "System",
+      "description": "Endpoints de estado y diagnóstico del servicio"
+    },
+    {
+      "name": "Register",
+      "description": "Endpoints del flujo de registro"
+    },
+    {
+      "name": "Login",
+      "description": "Endpoints del flujo de certificación de Fe de Vida"
+    }
+  ],
+  "paths": {
+    "/health": {
+      "get": {
+        "summary": "Health check",
+        "description": "Verifica que el servicio v2 esté operativo.",
+        "tags": ["System"],
+        "operationId": "getHealth",
+        "responses": {
+          "200": {
+            "description": "Servicio operativo",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/searchdni": {
+      "post": {
+        "summary": "Buscar usuario e iniciar la Fe de Vida",
+        "description": "Busca al usuario por DNI y sexo y evalúa el estado de su Fe de Vida para cada entidad (igual que v1). Si tiene alguna certificación pendiente (o una alerta en su última validación), crea una sesión de Face Liveness, registra una validación provisoria en `auditoria` y devuelve `idValidation` y `sessionId`. La app debe ejecutar la prueba de vida con ese `sessionId` (vence a los 3 minutos) y luego llamar a `POST /login`.\n\nSiempre responde HTTP 200; el resultado va en `res` y `message`.",
+        "tags": ["Login"],
+        "operationId": "searchdni",
+        "security": [{ "VidaAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/SearchDniRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Resultado de la búsqueda",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/SearchDniResponse" },
+                "examples": {
+                  "ok": {
+                    "summary": "Fe de Vida pendiente: continuar con el login",
+                    "value": { "res": "ok", "status": 200, "message": "ok", "idValidation": 912345, "sessionId": "7d47ca18-d224-4e65-8ba2-044d6828c792" }
+                  },
+                  "notRegistered": {
+                    "summary": "No registrado",
+                    "value": { "res": "error", "status": 200, "message": "No hemos podido autenticar su identidad.\nPreviamente debe registrarse.\nSi ya lo ha hecho comuníquese mediante el formulario de contacto" }
+                  },
+                  "noEntity": {
+                    "summary": "Sin entidad pagadora adherida",
+                    "value": { "res": "error", "status": 200, "message": "Lamentablemente su institución pagadora :\nBANCO DE LA NACION ARGENTINA\n no está adherida a TulD Vida.\nSi ha encontrado útil nuestro servicio solicite a su entidad la adhesión.\nCualquier inquietud pongase en contacto con nosotros." }
+                  },
+                  "rejected": {
+                    "summary": "Registro desaprobado o en revancha",
+                    "value": { "res": "error", "status": 200, "message": "Imposible Certificar Fe de Vida por que su Registración no fue completada o fue desaprobada.\nPóngase en contacto con Soporte a través del formulario de contacto" }
+                  },
+                  "alert": {
+                    "summary": "Registro observado (alerta)",
+                    "value": { "res": "error", "status": 200, "message": "Alerta!\n\nSu Registración realizada el día 15/03/2026 ha sido observada por no ajustarse a las normas de calidad y seguridad requerida.\n\nContactese cuanto antes mediante el formulario de contacto o por Whatsapp al +54 911 23443283" }
+                  },
+                  "upToDate": {
+                    "summary": "Fe de Vida al día",
+                    "value": { "res": "error", "status": 200, "message": "Su Fe de Vida se encuentra al día.\nPara BANCO NACION tiene validez hasta 15/12/2026.\n" }
+                  },
+                  "late": {
+                    "summary": "Ya certificada en el período",
+                    "value": { "res": "error", "status": 200, "message": "Su Fe de Vida ya fue certificada para el presente periodo.\nSi está pendiente su beneficio previsional no es necesario que realice ninguna acción.\nEn lo próximos dias deberá acreditarse." }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authorization header inválido o ausente",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/UnauthorizedResponse" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/login": {
+      "post": {
+        "summary": "Certificar Fe de Vida",
+        "description": "Certifica la Fe de Vida usando la validación de `POST /searchdni` y el `sessionId` de Face Liveness (en lugar de la selfie en base64 de v1).\n\nFlujo:\n1. Busca la validación provisoria por `idValidation` y verifica que el `sessionId` sea el emitido para ella.\n2. Obtiene el resultado del Face Liveness: debe estar `SUCCEEDED` y con confianza mayor o igual a `vida.livenessThreshold`.\n3. Compara la selfie registrada del usuario contra la imagen de referencia del liveness; aprueba con similitud mayor a `vida.approvePercentage`.\n4. Registra la certificación en `auditoria` por cada entidad pendiente, actualiza el usuario y devuelve sus datos y un token.\n\nSiempre responde HTTP 200; el resultado va en `res` y `message`.",
+        "tags": ["Login"],
+        "operationId": "login",
+        "security": [{ "VidaAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/LoginRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Resultado de la certificación",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/LoginResponse" },
+                "examples": {
+                  "ok": {
+                    "summary": "Fe de Vida certificada",
+                    "value": {
+                      "res": "ok",
+                      "status": 200,
+                      "message": "ok",
+                      "idUser": 41050,
+                      "name": "PEREZ, JUAN CARLOS",
+                      "banco": "BANCO NACION   ",
+                      "cuil": 20301234567,
+                      "fecha_valida": "2026-12-15T00:00:00.000Z",
+                      "email": "juan.perez@mail.com",
+                      "telefono": "1155551234",
+                      "emailVrf": 1,
+                      "telefonoVrf": 1,
+                      "img": "https://cdn.tuid.ar/entidades/bna.png",
+                      "link": "https://www.bna.com.ar",
+                      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+                      "pendingTasks": []
+                    }
+                  },
+                  "confirmContact": {
+                    "summary": "Certificada, con datos de contacto a confirmar",
+                    "value": {
+                      "res": "ok",
+                      "status": 200,
+                      "message": "Debe confirmar alguno de los datos de contacto",
+                      "idUser": 41050,
+                      "name": "PEREZ, JUAN CARLOS",
+                      "banco": "BANCO NACION   ",
+                      "cuil": 20301234567,
+                      "fecha_valida": "2026-12-15T00:00:00.000Z",
+                      "email": null,
+                      "telefono": null,
+                      "emailVrf": 0,
+                      "telefonoVrf": 0,
+                      "img": null,
+                      "link": null,
+                      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+                      "pendingTasks": [{ "id": 3, "empresa_id": "BNA", "titulo": "Declaración jurada", "activo": 1 }]
+                    }
+                  },
+                  "validationNotFound": {
+                    "summary": "Validación inexistente o ya utilizada",
+                    "value": { "res": "error", "status": 200, "message": "No pudimos encontrar tus datos en nuestra base. Contactanos a través del formulario de contacto" }
+                  },
+                  "sessionMismatch": {
+                    "summary": "El sessionId no corresponde a la validación",
+                    "value": { "res": "error", "status": 200, "message": "La sesión de verificación de vida no corresponde a esta validación. Inicie el proceso nuevamente." }
+                  },
+                  "livenessNotRun": {
+                    "summary": "Prueba de vida no ejecutada o sesión vencida",
+                    "value": { "res": "error", "status": 200, "livenessStatus": "EXPIRED", "message": "La prueba de vida no se completó o la sesión expiró. Por favor intente nuevamente." }
+                  },
+                  "livenessFailed": {
+                    "summary": "Prueba de vida no superada",
+                    "value": { "res": "error", "status": 200, "livenessStatus": "SUCCEEDED", "confidence": 42.1, "message": "No se pudo confirmar la prueba de vida. Por favor intente nuevamente." }
+                  },
+                  "identityMismatch": {
+                    "summary": "La selfie no coincide con la registrada",
+                    "value": { "res": "error", "status": 200, "livenessStatus": "SUCCEEDED", "message": "Su identidad no coincide con nuestros registros.\n                        Es posible que la foto haya salido movida o con mala iluminación.\n                        Comuníquese mediante el formulario de contacto" }
+                  },
+                  "missing": {
+                    "summary": "Faltan datos requeridos",
+                    "value": { "res": "error", "status": 200, "message": "Faltan datos requeridos: idValidation, sessionId" }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authorization header inválido o ausente",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/UnauthorizedResponse" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/session": {
+      "get": {
+        "summary": "Crear sesión de Face Liveness",
+        "description": "Crea una sesión de Face Liveness (AWS Rekognition) y devuelve el `sessionId` que el cliente debe usar para ejecutar la prueba de vida. Ante un error, responde HTTP 200 con `res: error` y `status: 400`.",
+        "tags": ["Register"],
+        "operationId": "createLivenessSession",
+        "security": [{ "VidaAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "Sesión de liveness creada, o error al crearla",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    { "$ref": "#/components/schemas/LivenessSessionResponse" },
+                    { "$ref": "#/components/schemas/ErrorResponse" }
+                  ]
+                },
+                "examples": {
+                  "ok": {
+                    "summary": "Sesión creada",
+                    "value": { "sessionId": "7792d95f-7f7e-42a8-87b2-b48c7f7d4ac6" }
+                  },
+                  "error": {
+                    "summary": "Error al crear la sesión",
+                    "value": {
+                      "res": "error",
+                      "status": 400,
+                      "message": "Error creando la sesión de liveness",
+                      "details": "The security token included in the request is invalid."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authorization header inválido o ausente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/signup": {
+      "post": {
+        "summary": "Registro de usuario",
+        "description": "Registra un usuario a partir de los datos del DNI y el `sessionId` de Face Liveness obtenido en `GET /session`.\n\nFlujo:\n1. Valida campos requeridos y normaliza DNI y nombres.\n2. Verifica lista negra y registros previos (si existe con estado `Ok` o `Confirmacion` corta; si no, reemplaza el registro).\n3. Busca a la persona en el padrón por DNI y sexo.\n4. Obtiene el resultado del Face Liveness: debe estar `SUCCEEDED` y con confianza mayor o igual a `vida.livenessThreshold`.\n5. Guarda frente, dorso, foto del DNI y la imagen de referencia del liveness.\n6. Compara la imagen del liveness contra la foto del DNI:\n   - menor a `revengePercentage`: error;\n   - entre `revengePercentage` y `approvePercentage`: `message: chance` con una pregunta de conocimiento (responder en `/chance` con `idUser` = `iduser`);\n   - mayor o igual a `approvePercentage`: `message: ok`, estado `Verificar`.\n\nSiempre responde HTTP 200; el resultado va en `res` y `status`.",
+        "tags": ["Register"],
+        "operationId": "signup",
+        "security": [{ "VidaAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/SignupRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Resultado del registro",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/SignupResponse" },
+                "examples": {
+                  "ok": {
+                    "summary": "Registro aprobado",
+                    "value": { "res": "ok", "status": 200, "message": "ok", "similarity": 98.7, "iduser": 41050 }
+                  },
+                  "chance": {
+                    "summary": "Revancha con pregunta de conocimiento",
+                    "value": {
+                      "res": "ok",
+                      "status": 200,
+                      "message": "chance",
+                      "similarity": 62.4,
+                      "iduser": 41051,
+                      "question": {
+                        "id": "7",
+                        "text": "Tiene cuenta en alguno de estos Bancos",
+                        "0": "BANCO DE LA NACION ARGENTINA",
+                        "1": "BANCO DE GALICIA Y BUENOS AIRES S.A.",
+                        "2": "BANCO SANTANDER ARGENTINA S.A.",
+                        "3": "Ninguna es correcta"
+                      }
+                    }
+                  },
+                  "liveness": {
+                    "summary": "Prueba de vida no superada",
+                    "value": { "res": "error", "status": 200, "message": "No se pudo confirmar la prueba de vida. Por favor intente nuevamente.", "livenessStatus": "SUCCEEDED", "confidence": 42.1 }
+                  },
+                  "livenessNotRun": {
+                    "summary": "Prueba de vida no ejecutada o sesión vencida",
+                    "value": { "res": "error", "status": 200, "message": "La prueba de vida no se completó o la sesión expiró. Por favor intente nuevamente.", "livenessStatus": "EXPIRED" }
+                  },
+                  "notFound": {
+                    "summary": "No figura en el padrón",
+                    "value": { "res": "error", "status": 204, "message": "No se encontraron datos en nuestros registros. Comuniquese mediante el formulario de contacto para que podamos resolver su inconveniente." }
+                  },
+                  "missing": {
+                    "summary": "Faltan datos requeridos",
+                    "value": { "res": "error", "status": 200, "message": "Faltan datos requeridos: sessionId, idDocument.photo" }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authorization header inválido o ausente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "VidaAuth": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "Authorization",
+        "description": "Token de la marca blanca habilitada en `vida.whitebrands`."
+      }
+    },
+    "schemas": {
+      "HealthResponse": {
+        "type": "object",
+        "required": ["status"],
+        "properties": {
+          "status": {
+            "type": "string",
+            "description": "Estado del servicio",
+            "example": "OK"
+          }
+        }
+      },
+      "LivenessSessionResponse": {
+        "type": "object",
+        "required": ["sessionId"],
+        "properties": {
+          "sessionId": {
+            "type": "string",
+            "description": "ID de la sesión de Face Liveness (AWS Rekognition).",
+            "example": "7792d95f-7f7e-42a8-87b2-b48c7f7d4ac6"
+          }
+        }
+      },
+      "SignupRequest": {
+        "type": "object",
+        "required": ["sessionId", "idDocument"],
+        "properties": {
+          "idDevice": { "type": "string", "description": "Token FCM del dispositivo", "example": "<token FCM>" },
+          "sessionId": {
+            "type": "string",
+            "description": "SessionId de Face Liveness obtenido en `GET /session`.",
+            "example": "7d47ca18-d224-4e65-8ba2-044d6828c792"
+          },
+          "version": { "type": "string", "description": "Versión del sistema operativo", "example": "18.5" },
+          "appversion": { "type": "string", "description": "Versión de la app", "example": "3.0.0" },
+          "os": { "type": "string", "description": "Sistema operativo y modelo del dispositivo", "example": "IOS-iPhone15,2" },
+          "latitud": { "type": "string", "example": "-34.6037" },
+          "longitud": { "type": "string", "example": "-58.3816" },
+          "idDocument": { "$ref": "#/components/schemas/IdDocument" }
+        }
+      },
+      "IdDocument": {
+        "type": "object",
+        "required": ["type", "number", "gender", "name", "lastname", "birth", "front", "back", "photo"],
+        "properties": {
+          "type": {
+            "type": "string",
+            "description": "Tipo de DNI: `O` = DNI Tarjeta, `N` = DNI Anterior, `L` = Ultimo DNI",
+            "enum": ["O", "N", "L"],
+            "example": "L"
+          },
+          "number": { "type": "string", "description": "Número de documento", "example": "30123456" },
+          "name": { "type": "string", "example": "JUAN CARLOS" },
+          "lastname": { "type": "string", "example": "PEREZ" },
+          "expires": { "type": "string", "description": "Fecha de vencimiento del DNI (yyyy-MM-dd)", "example": "2035-03-15" },
+          "issue": { "type": "string", "description": "Fecha de emisión del DNI (yyyy-MM-dd)", "example": "2020-03-15" },
+          "example": { "type": "string", "description": "Ejemplar del DNI (A/B/C...)", "example": "A" },
+          "tramit": { "type": "string", "description": "Número de trámite del DNI", "example": "00612345678" },
+          "gender": {
+            "type": "string",
+            "description": "Sexo del titular: `M` masculino, `F` femenino, `X` no binario",
+            "enum": ["M", "F", "X"],
+            "example": "M"
+          },
+          "birth": { "type": "string", "description": "Fecha de nacimiento (yyyy-MM-dd)", "example": "1985-06-20" },
+          "serialNumber": { "type": "string", "description": "Número de serie del documento", "example": "123456789" },
+          "nfc": { "type": "boolean", "description": "Si el documento se leyó por NFC", "example": true },
+          "nfcCode": { "type": "string", "description": "Código NFC de 6 dígitos (solo si `nfc` = true)", "example": "123456" },
+          "barcode": { "type": "string", "description": "Contenido crudo del PDF417 / QR", "example": "<contenido crudo del PDF417 / QR>" },
+          "mrz": { "type": "string", "description": "Líneas del MRZ separadas por `\\n`", "example": "<líneas del MRZ separadas por \\n>" },
+          "front": { "type": "string", "description": "Frente del DNI en base64 (JPEG 800px)", "example": "<base64 jpeg 800px>" },
+          "back": { "type": "string", "description": "Dorso del DNI en base64 (JPEG 800px)", "example": "<base64 jpeg 800px>" },
+          "photo": { "type": "string", "description": "Foto del rostro del DNI en base64 (JPEG)", "example": "<base64 jpeg del rostro del DNI>" }
+        }
+      },
+      "SearchDniRequest": {
+        "type": "object",
+        "required": ["dni", "sexo"],
+        "properties": {
+          "dni": { "type": "string", "description": "Número de documento (se descartan puntos, espacios y ceros a la izquierda)", "example": "30123456" },
+          "sexo": { "type": "string", "enum": ["M", "F", "X"], "example": "M" },
+          "version": { "type": "string", "description": "Versión del sistema operativo", "example": "18.5" },
+          "os": { "type": "string", "description": "Sistema operativo y modelo del dispositivo", "example": "IOS-iPhone15,2" },
+          "appversion": { "type": "string", "description": "Versión de la app", "example": "3.0.0" }
+        }
+      },
+      "SearchDniResponse": {
+        "type": "object",
+        "required": ["res", "status"],
+        "properties": {
+          "res": { "type": "string", "description": "`ok` si puede continuar con el login; `error` en cualquier otro caso (incluye Fe de Vida al día).", "enum": ["ok", "error"], "example": "ok" },
+          "status": { "type": "integer", "example": 200 },
+          "message": { "type": "string", "example": "ok" },
+          "idValidation": { "type": "integer", "description": "ID de la validación provisoria. Enviarlo en `POST /login`.", "example": 912345 },
+          "sessionId": { "type": "string", "description": "SessionId de Face Liveness para ejecutar la prueba de vida y enviar en `POST /login`.", "example": "7d47ca18-d224-4e65-8ba2-044d6828c792" },
+          "details": { "description": "Detalle técnico del error", "oneOf": [{ "type": "string" }, { "type": "object" }] }
+        }
+      },
+      "LoginRequest": {
+        "type": "object",
+        "required": ["idValidation", "sessionId"],
+        "properties": {
+          "idValidation": { "type": "integer", "description": "Devuelto por `POST /searchdni`.", "example": 912345 },
+          "sessionId": { "type": "string", "description": "El mismo `sessionId` devuelto por `POST /searchdni`, ya usado en la prueba de vida.", "example": "7d47ca18-d224-4e65-8ba2-044d6828c792" },
+          "idDevice": { "type": "string", "description": "Token FCM del dispositivo", "example": "<token FCM>" },
+          "latitud": { "type": "string", "example": "-34.6037" },
+          "longitud": { "type": "string", "example": "-58.3816" },
+          "version": { "type": "string", "description": "Versión del sistema operativo", "example": "18.5" },
+          "os": { "type": "string", "description": "Sistema operativo y modelo del dispositivo", "example": "IOS-iPhone15,2" },
+          "appversion": { "type": "string", "description": "Versión de la app", "example": "3.0.0" }
+        }
+      },
+      "LoginResponse": {
+        "type": "object",
+        "required": ["res", "status", "message"],
+        "properties": {
+          "res": { "type": "string", "enum": ["ok", "error"], "example": "ok" },
+          "status": { "type": "integer", "example": 200 },
+          "message": { "type": "string", "description": "`ok`, `Debe confirmar alguno de los datos de contacto` o el mensaje de error.", "example": "ok" },
+          "idUser": { "type": "integer", "example": 41050 },
+          "name": { "type": "string", "description": "Apellido, Nombre", "example": "PEREZ, JUAN CARLOS" },
+          "banco": { "type": "string", "description": "Entidades certificadas, separadas por tres espacios.", "example": "BANCO NACION   " },
+          "cuil": { "type": "integer", "example": 20301234567 },
+          "fecha_valida": { "type": "string", "nullable": true, "description": "Próximo vencimiento según la entidad.", "example": "2026-12-15T00:00:00.000Z" },
+          "email": { "type": "string", "nullable": true },
+          "telefono": { "type": "string", "nullable": true },
+          "emailVrf": { "type": "integer", "example": 1 },
+          "telefonoVrf": { "type": "integer", "example": 1 },
+          "img": { "type": "string", "nullable": true, "description": "Logo de la entidad" },
+          "link": { "type": "string", "nullable": true, "description": "Link de la entidad" },
+          "token": { "type": "string", "description": "Token para los endpoints autenticados (header `x-auth-token`)." },
+          "pendingTasks": { "type": "array", "description": "Formularios pendientes de completar para las entidades del usuario.", "items": { "type": "object" } },
+          "livenessStatus": {
+            "type": "string",
+            "description": "Estado de la sesión de Face Liveness en AWS. Presente cuando se llegó a consultar el liveness.",
+            "enum": ["CREATED", "IN_PROGRESS", "SUCCEEDED", "FAILED", "EXPIRED"]
+          },
+          "confidence": { "type": "number", "description": "Confianza del Face Liveness. Presente cuando la prueba no supera el umbral.", "example": 42.1 },
+          "details": { "description": "Detalle técnico del error", "oneOf": [{ "type": "string" }, { "type": "object" }] }
+        }
+      },
+      "SignupResponse": {
+        "type": "object",
+        "required": ["res", "status", "message"],
+        "properties": {
+          "res": {
+            "type": "string",
+            "description": "`ok` si se creó el registro (aprobado o revancha), `error` en cualquier otro caso.",
+            "enum": ["ok", "error"],
+            "example": "ok"
+          },
+          "status": {
+            "type": "integer",
+            "description": "`200` en general; `204` cuando la persona no figura en el padrón; `400` si falló el alta en la base.",
+            "example": 200
+          },
+          "message": {
+            "type": "string",
+            "description": "`ok` (aprobado), `chance` (revancha con pregunta) o el mensaje de error.",
+            "example": "ok"
+          },
+          "similarity": {
+            "type": "number",
+            "description": "Similitud entre la imagen de referencia del liveness y la foto del DNI.",
+            "example": 98.7
+          },
+          "confidence": {
+            "type": "number",
+            "description": "Confianza del Face Liveness. Presente cuando la prueba de vida no supera el umbral.",
+            "example": 42.1
+          },
+          "livenessStatus": {
+            "type": "string",
+            "description": "Estado de la sesión de Face Liveness en AWS. `CREATED` o `EXPIRED` indican que la prueba no se ejecutó sobre ese `sessionId` (las sesiones vencen a los 3 minutos si no se usan); `IN_PROGRESS` que todavía no terminó.",
+            "enum": ["CREATED", "IN_PROGRESS", "SUCCEEDED", "FAILED", "EXPIRED"],
+            "example": "SUCCEEDED"
+          },
+          "question": {
+            "type": "object",
+            "description": "Pregunta de conocimiento. Presente solo cuando `message` es `chance`. Las claves `0` a `3` son las opciones; `3` siempre es `Ninguna es correcta`.",
+            "properties": {
+              "id": { "type": "string", "description": "Tipo de pregunta (4 empleador, 5 familiar, 6 obra social, 7 banco, 8 teléfono, 9 relación laboral)", "example": "7" },
+              "text": { "type": "string", "example": "Tiene cuenta en alguno de estos Bancos" },
+              "0": { "type": "string" },
+              "1": { "type": "string" },
+              "2": { "type": "string" },
+              "3": { "type": "string", "example": "Ninguna es correcta" }
+            }
+          },
+          "iduser": {
+            "type": "integer",
+            "description": "ID del usuario creado (`id_usuario`). Se usa como `idUser` en `/chance`.",
+            "example": 41050
+          },
+          "details": {
+            "description": "Detalle técnico del error",
+            "oneOf": [
+              { "type": "string" },
+              { "type": "object" }
+            ]
+          }
+        }
+      },
+      "ErrorResponse": {
+        "type": "object",
+        "required": ["res", "status", "message"],
+        "properties": {
+          "res": {
+            "type": "string",
+            "example": "error"
+          },
+          "status": {
+            "type": "integer",
+            "example": 400
+          },
+          "message": {
+            "type": "string",
+            "description": "Mensaje de error",
+            "example": "Error creando la sesión de liveness"
+          },
+          "details": {
+            "description": "Detalle técnico del error",
+            "oneOf": [
+              { "type": "string" },
+              { "type": "object" }
+            ]
+          }
+        }
+      },
+      "UnauthorizedResponse": {
+        "type": "object",
+        "required": ["message"],
+        "properties": {
+          "message": {
+            "type": "string",
+            "example": "Please make sure your request has a valid Authorization header"
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,1232 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "TuID Authenticator API v2",
+    "version": "2.0.0",
+    "description": "API v2 de TuID Authenticator"
+  },
+  "servers": [
+    {
+      "url": "/authenticator/v2",
+      "description": "Authenticator v2"
+    }
+  ],
+  "tags": [
+    {
+      "name": "Register",
+      "description": "Endpoints de registro y búsqueda de usuarios"
+    },
+    {
+      "name": "Testing",
+      "description": "Endpoints auxiliares para pruebas internas"
+    },
+    {
+      "name": "Legal",
+      "description": "Términos y condiciones y política de privacidad por marca blanca"
+    },
+    {
+      "name": "Address",
+      "description": "Catálogo de localidades y actualización de domicilio del usuario"
+    },
+    {
+      "name": "Attest",
+      "description": "Apple App Attest: challenge de enroll (sin liveness) y registro de la key de la instalación iOS"
+    }
+  ],
+  "paths": {
+    "/address": {
+      "post": {
+        "summary": "Actualizar domicilio del usuario",
+        "description": "Guarda el domicilio declarado en `usuario_direccion`, marca `addressVrf = 1` y, si todas las validaciones mandatory del whitebrand están cumplidas (`mail` / `phone` / `address`), pasa el usuario a `estado = Ok` y dispara el webhook de alta. Usa el mismo `authToken` que email/teléfono (`body.token`).",
+        "tags": ["Address"],
+        "operationId": "updateAddress",
+        "security": [{ "WhiteBrandAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/UpdateAddressRequest" },
+              "examples": {
+                "ok": {
+                  "summary": "Domicilio Argentina",
+                  "value": {
+                    "token": "<authToken>",
+                    "pais": "AR",
+                    "provincia": "BUENOS AIRES",
+                    "localidad": "25 DE MAYO",
+                    "codigoPostal": "6660",
+                    "calle": "Av. Siempre Viva",
+                    "numero": "123",
+                    "piso": "2",
+                    "depto": "B",
+                    "codigoUta": "068540854100000"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Resultado de la actualización (incluye errores de negocio con status en body)",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/UpdateAddressResponse" },
+                "examples": {
+                  "okComplete": {
+                    "summary": "Dirección guardada y usuario Ok",
+                    "value": {
+                      "res": "ok",
+                      "status": 200,
+                      "message": "Ok",
+                      "addressVrf": true
+                    }
+                  },
+                  "okPending": {
+                    "summary": "Dirección guardada, faltan otras validaciones",
+                    "value": {
+                      "res": "ok",
+                      "status": 200,
+                      "message": "Verificar",
+                      "addressVrf": true
+                    }
+                  },
+                  "tokenExpired": {
+                    "summary": "Token inválido o vencido",
+                    "value": {
+                      "res": "error",
+                      "status": 400,
+                      "message": "Token de identificacion de DNI vencido, inicie el proceso nuevamente"
+                    }
+                  },
+                  "missingFields": {
+                    "summary": "Campos faltantes",
+                    "value": {
+                      "res": "error",
+                      "status": 400,
+                      "message": "Faltan campos de dirección: calle, numero"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authorization header inválido o ausente",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/UnauthorizedResponse" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/localities": {
+      "get": {
+        "summary": "Obtener localidades de Argentina",
+        "description": "Devuelve el catálogo jerárquico de provincias, departamentos, municipios y localidades de Argentina (archivo `resources/AR_min.json`). Cada localidad incluye `name` y `code` (código UTA 2020).",
+        "tags": ["Address"],
+        "operationId": "getLocalities",
+        "security": [{ "WhiteBrandAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "Catálogo de localidades",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/LocalitiesResponse" },
+                "examples": {
+                  "ok": {
+                    "summary": "Estructura jerárquica",
+                    "value": {
+                      "provincias": [
+                        {
+                          "name": "BUENOS AIRES",
+                          "departamentos": [
+                            {
+                              "name": "25 DE MAYO",
+                              "municipios": [
+                                {
+                                  "name": "25 DE MAYO",
+                                  "localidades": [
+                                    {
+                                      "name": "25 DE MAYO",
+                                      "code": "068540854100000"
+                                    }
+                                  ]
+                                }
+                              ]
+                            }
+                          ],
+                          "departamentos_selectable": true,
+                          "departamento_label": "Partido",
+                          "municipios_selectable": true,
+                          "municipio_label": "Municipio",
+                          "localidad_label": "Localidad"
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authorization header inválido o ausente",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/UnauthorizedResponse" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/tyc": {
+      "get": {
+        "summary": "Obtener Términos y Condiciones",
+        "description": "Devuelve el HTML de Términos y Condiciones correspondiente a la marca blanca autenticada (`{brandId}_tyc.html`).",
+        "tags": ["Legal"],
+        "operationId": "getTyc",
+        "security": [{ "WhiteBrandAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "Documento legal",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/LegalDocumentResponse" },
+                "examples": {
+                  "ok": {
+                    "summary": "Términos y condiciones",
+                    "value": {
+                      "res": "ok",
+                      "status": 200,
+                      "brand": "kiwipayauth",
+                      "brandName": "Kiwipay Auth",
+                      "type": "tyc",
+                      "html": "<!DOCTYPE html><html>...</html>"
+                    }
+                  },
+                  "notFound": {
+                    "summary": "Documento no encontrado",
+                    "value": {
+                      "res": "error",
+                      "status": 404,
+                      "message": "Documento no encontrado para esta marca",
+                      "brand": "kiwipayauth",
+                      "type": "tyc"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authorization header inválido o ausente",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/UnauthorizedResponse" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/privacy": {
+      "get": {
+        "summary": "Obtener Política de Privacidad",
+        "description": "Devuelve el HTML de Política de Privacidad correspondiente a la marca blanca autenticada (`{brandId}_privacy.html`).",
+        "tags": ["Legal"],
+        "operationId": "getPrivacy",
+        "security": [{ "WhiteBrandAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "Documento legal",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/LegalDocumentResponse" },
+                "examples": {
+                  "ok": {
+                    "summary": "Política de privacidad",
+                    "value": {
+                      "res": "ok",
+                      "status": 200,
+                      "brand": "kiwipayauth",
+                      "brandName": "Kiwipay Auth",
+                      "type": "privacy",
+                      "html": "<!DOCTYPE html><html>...</html>"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authorization header inválido o ausente",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/UnauthorizedResponse" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/session": {
+      "get": {
+        "summary": "Crear sesión de Face Liveness",
+        "description": "Crea una sesión de Face Liveness (AWS Rekognition) y persiste el `sessionId` como challenge de assertion de App Attest en el signup (TTL de la marca). No usar este endpoint solo para enrolar: para eso está `GET /attest/challenge`.",
+        "tags": ["Register"],
+        "operationId": "createLivenessSession",
+        "security": [{ "WhiteBrandAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "Sesión de liveness creada",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "sessionId": {
+                      "type": "string",
+                      "description": "ID de Face Liveness. En signup es también el challenge de la assertion (`X-App-Attest-Challenge`).",
+                      "example": "7792d95f-7f7e-42a8-87b2-b48c7f7d4ac6"
+                    }
+                  }
+                },
+                "examples": {
+                  "ok": {
+                    "summary": "Sesión creada",
+                    "value": { "sessionId": "7792d95f-7f7e-42a8-87b2-b48c7f7d4ac6" }
+                  },
+                  "error": {
+                    "summary": "Error al crear la sesión",
+                    "value": { "res": "error", "status": 400, "message": "Error creando la sesión de liveness" }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authorization header inválido o ausente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/attest/challenge": {
+      "get": {
+        "summary": "Emitir challenge de App Attest (enroll)",
+        "description": "Devuelve un nonce y lo persiste en `app_attest_challenge` (TTL de la marca). No crea sesión de Face Liveness. Usar este `challenge` en `POST /attest/enroll`. El signup sigue usando el `sessionId` de liveness como challenge de assertion.",
+        "tags": ["Attest"],
+        "operationId": "getAppAttestChallenge",
+        "security": [{ "WhiteBrandAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "Challenge emitido",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/AppAttestChallengeResponse" },
+                "examples": {
+                  "ok": {
+                    "summary": "Challenge",
+                    "value": { "challenge": "a1b2c3d4-e5f6-7890-abcd-ef1234567890" }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authorization header inválido o ausente",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/UnauthorizedResponse" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/attest/enroll": {
+      "post": {
+        "summary": "Enrolar key de Apple App Attest",
+        "description": "Verifica la attestation de Apple (`DCAppAttestService.attestKey`) usando el `challenge` de `GET /attest/challenge` (recomendado) o, si todavía lo usan, un `sessionId` de liveness. Si es válida, guarda la public key de esa instalación. Un enroll inválido no impide el signup (el alta quedará con `attestVrf: false`).",
+        "tags": ["Attest"],
+        "operationId": "enrollAppAttest",
+        "security": [{ "WhiteBrandAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/AppAttestEnrollRequest" },
+              "examples": {
+                "ok": {
+                  "summary": "Enroll iOS",
+                  "value": {
+                    "keyId": "<base64 keyId>",
+                    "attestation": "<base64 attestation object>",
+                    "challenge": "7792d95f-7f7e-42a8-87b2-b48c7f7d4ac6"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Resultado del enroll (errores de negocio con status en body)",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/AppAttestEnrollResponse" },
+                "examples": {
+                  "ok": {
+                    "summary": "Key enrolada",
+                    "value": { "res": "ok", "status": 200, "message": "Key enrolada", "keyId": "<base64 keyId>" }
+                  },
+                  "invalid": {
+                    "summary": "Attestation inválida",
+                    "value": { "res": "error", "status": 400, "message": "Attestation inválida" }
+                  },
+                  "challenge": {
+                    "summary": "Challenge inválido o vencido",
+                    "value": { "res": "error", "status": 400, "message": "Challenge inválido o vencido" }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authorization header inválido o ausente",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/UnauthorizedResponse" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/test/{idJson}": {
+      "get": {
+        "summary": "Reprocesar signup desde un body guardado",
+        "description": "Endpoint de prueba interno. Carga un body previamente persistido por `/signup` en `logs/signup/{idJson}.json` y vuelve a ejecutar toda la cadena de registro (validación de usuario, datos, subida de imágenes, comparación de rostro/liveness, PEP y alta). Útil para reprocesar o depurar un registro sin tener que reenviar las imágenes desde el cliente.",
+        "tags": ["Testing"],
+        "operationId": "loadTestBody",
+        "security": [{ "WhiteBrandAuth": [] }],
+        "parameters": [
+          {
+            "name": "idJson",
+            "in": "path",
+            "required": true,
+            "description": "Nombre (sin extensión) del archivo guardado en `logs/signup/`. Por ejemplo `1` para `logs/signup/1.json`.",
+            "schema": {
+              "type": "string",
+              "example": "1"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Resultado del reprocesamiento del signup (mismo formato que `/signup`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SignupResponse"
+                },
+                "examples": {
+                  "notFound": {
+                    "summary": "JSON de prueba inexistente",
+                    "value": {
+                      "res": "error",
+                      "status": 200,
+                      "message": "No se encontró el JSON de prueba: 1"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authorization header inválido o ausente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/signup": {
+      "post": {
+        "summary": "Registrar usuario (signup)",
+        "description": "Ejecuta el alta del usuario: valida datos contra el master, sube las imagenes del DNI, compara el rostro de la sesion de Face Liveness contra la foto del documento y crea/actualiza el registro. Segun la similitud puede aprobar (`message: Ok`/`Verificar`), pedir una pregunta de conocimiento (`message: chance`, banda intermedia) o rechazar (`res: error`). El `status` del body queda en 200 en todo el flujo de signup. Headers opcionales de App Attest (`X-App-Attest-*`): si la assertion es válida se persiste `attestVrf: true` (también firmado en el `authToken`); si faltan o fallan el alta sigue con `attestVrf: false`.",
+        "tags": ["Register"],
+        "operationId": "signupUser",
+        "security": [{ "WhiteBrandAuth": [] }],
+        "parameters": [
+          {
+            "name": "X-App-Attest-KeyId",
+            "in": "header",
+            "required": false,
+            "description": "keyId de App Attest (base64). Opcional; si falta el alta sigue con attestVrf false.",
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "X-App-Attest-Challenge",
+            "in": "header",
+            "required": false,
+            "description": "Debe coincidir con el sessionId de liveness.",
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "X-App-Attest-Assertion",
+            "in": "header",
+            "required": false,
+            "description": "Assertion de App Attest en base64. clientDataHash = SHA256(sessionId || SHA256(rawBody)).",
+            "schema": { "type": "string" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SignupRequest"
+              },
+              "examples": {
+                "ultimoDni": {
+                  "summary": "Ultimo DNI (type L, leido por NFC)",
+                  "value": {
+                    "idDocument": {
+                      "type": "L",
+                      "number": "35273106",
+                      "gender": "M",
+                      "name": "IGNACIO MARTIN",
+                      "lastname": "ROSA",
+                      "birth": "1990-07-18",
+                      "issue": "07/04/2023",
+                      "expires": "07/04/2038",
+                      "tramit": "00703219306",
+                      "nfc": true,
+                      "nfcCode": "123456",
+                      "example": "C",
+                      "address": "Av. Siempre Viva 123",
+                      "front": "<base64>",
+                      "back": "<base64>",
+                      "photo": "<base64>"
+                    },
+                    "sessionId": "2ce323e2-c606-44fb-b092-d94cedb2b30d",
+                    "idDevice": "dLSc78vZAUHUiT52B4KnWb:APA91b...<fcm-token>",
+                    "os": "IOS-iPhone15,4",
+                    "version": "18.7.8",
+                    "esPep": false,
+                    "vinculoPep": "",
+                    "cargoPep": "",
+                    "esSujetoObligado": false,
+                    "tipoSujetoObligado": ""
+                  }
+                },
+                "dniAnterior": {
+                  "summary": "DNI Anterior (type N, sin NFC)",
+                  "value": {
+                    "idDocument": {
+                      "type": "N",
+                      "number": "35273106",
+                      "gender": "M",
+                      "name": "IGNACIO MARTIN",
+                      "lastname": "ROSA",
+                      "birth": "1990-07-18",
+                      "issue": "07/04/2023",
+                      "expires": "07/04/2038",
+                      "tramit": "00703219306",
+                      "nfc": false,
+                      "address": "Av. Siempre Viva 123",
+                      "front": "<base64>",
+                      "back": "<base64>",
+                      "photo": "<base64>"
+                    },
+                    "sessionId": "2ce323e2-c606-44fb-b092-d94cedb2b30d",
+                    "idDevice": "dLSc78vZAUHUiT52B4KnWb:APA91b...<fcm-token>",
+                    "os": "IOS-iPhone15,4",
+                    "version": "18.7.8",
+                    "esPep": false,
+                    "vinculoPep": "",
+                    "cargoPep": "",
+                    "esSujetoObligado": false,
+                    "tipoSujetoObligado": ""
+                  }
+                },
+                "dniTarjeta": {
+                  "summary": "DNI Tarjeta viejo (type O) con datos PEP",
+                  "value": {
+                    "idDocument": {
+                      "type": "O",
+                      "number": "35273106",
+                      "gender": "M",
+                      "name": "IGNACIO MARTIN",
+                      "lastname": "ROSA",
+                      "birth": "1990-07-18",
+                      "issue": "07/04/2023",
+                      "expires": "07/04/2038",
+                      "tramit": "00703219306",
+                      "nfc": false,
+                      "address": "Av. Siempre Viva 123",
+                      "front": "<base64>",
+                      "back": "<base64>",
+                      "photo": "<base64>"
+                    },
+                    "sessionId": "2ce323e2-c606-44fb-b092-d94cedb2b30d",
+                    "idDevice": "dLSc78vZAUHUiT52B4KnWb:APA91b...<fcm-token>",
+                    "os": "IOS-iPhone15,4",
+                    "version": "18.7.8",
+                    "esPep": true,
+                    "vinculoPep": "La misma persona",
+                    "cargoPep": "Concejal",
+                    "esSujetoObligado": false,
+                    "tipoSujetoObligado": ""
+                  }
+                },
+                "noBinario": {
+                  "summary": "Ultimo DNI con genero no binario (gender X)",
+                  "value": {
+                    "idDocument": {
+                      "type": "L",
+                      "number": "40123456",
+                      "gender": "X",
+                      "name": "ALEX",
+                      "lastname": "GARCIA",
+                      "birth": "1995-03-15",
+                      "issue": "01/06/2022",
+                      "expires": "01/06/2037",
+                      "tramit": "00612345678",
+                      "nfc": true,
+                      "nfcCode": "654321",
+                      "example": "B",
+                      "address": "Calle Falsa 123",
+                      "front": "<base64>",
+                      "back": "<base64>",
+                      "photo": "<base64>"
+                    },
+                    "sessionId": "2ce323e2-c606-44fb-b092-d94cedb2b30d",
+                    "idDevice": "dLSc78vZAUHUiT52B4KnWb:APA91b...<fcm-token>",
+                    "os": "IOS-iPhone15,4",
+                    "version": "18.7.8",
+                    "esPep": false,
+                    "vinculoPep": "",
+                    "cargoPep": "",
+                    "esSujetoObligado": false,
+                    "tipoSujetoObligado": ""
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Resultado del registro",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SignupResponse"
+                },
+                "examples": {
+                  "aprobado": {
+                    "summary": "Aprobado (alta completa)",
+                    "value": {
+                      "res": "ok",
+                      "status": 200,
+                      "message": "Ok",
+                      "similarity": 97.8,
+                      "iduser": 12345,
+                      "authToken": "<jwt>",
+                      "requireData": { "mailValidationMandatory": false, "phoneValidationMandatory": false, "addressValidationMandatory": false },
+                      "telefonoVrf": false,
+                      "emailVrf": false,
+                      "addressVrf": false,
+                      "attestVrf": false
+                    }
+                  },
+                  "aprobadoVerificar": {
+                    "summary": "Aprobado, requiere validar mail/telefono",
+                    "value": {
+                      "res": "ok",
+                      "status": 200,
+                      "message": "Verificar",
+                      "similarity": 96.2,
+                      "iduser": 12345,
+                      "authToken": "<jwt>",
+                      "requireData": { "mailValidationMandatory": true, "phoneValidationMandatory": true, "addressValidationMandatory": true },
+                      "telefonoVrf": false,
+                      "emailVrf": false,
+                      "addressVrf": false,
+                      "attestVrf": false
+                    }
+                  },
+                  "revancha": {
+                    "summary": "Revancha (similitud intermedia, requiere pregunta)",
+                    "value": {
+                      "res": "ok",
+                      "status": 200,
+                      "message": "chance",
+                      "similarity": 63.5,
+                      "iduser": 12345,
+                      "authToken": "<jwt>",
+                      "requireData": { "mailValidationMandatory": true, "phoneValidationMandatory": true, "addressValidationMandatory": true },
+                      "telefonoVrf": false,
+                      "emailVrf": false,
+                      "addressVrf": false,
+                      "attestVrf": false,
+                      "question": {
+                        "id": "7",
+                        "text": "Tiene cuenta en alguno de estos Bancos",
+                        "0": "Banco Nacion",
+                        "1": "Banco Galicia",
+                        "2": "Banco Provincia",
+                        "3": "Ninguna es correcta"
+                      }
+                    }
+                  },
+                  "livenessFallido": {
+                    "summary": "Error: prueba de vida no superada",
+                    "value": {
+                      "res": "error",
+                      "status": 200,
+                      "message": "No se pudo confirmar la prueba de vida. Por favor intente nuevamente.",
+                      "confidence": 42.1
+                    }
+                  },
+                  "similitudBaja": {
+                    "summary": "Error: rostro no coincide (similitud baja)",
+                    "value": {
+                      "res": "error",
+                      "status": 200,
+                      "message": "No nos fue posible realizar la Autenticacion. Su informacion personal y los datos biometricos obtenidos no son coincidentes.",
+                      "similarity": 31.4
+                    }
+                  },
+                  "datosNoCoinciden": {
+                    "summary": "Error: datos del DNI no coinciden con el master",
+                    "value": {
+                      "res": "error",
+                      "status": 200,
+                      "message": "Los datos del DNI no coinciden con nuestra base de datos"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authorization header inválido o ausente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/search": {
+      "post": {
+        "summary": "Buscar usuario",
+        "description": "Busca un usuario por documento y género dentro de la aplicación (whitebrand) autenticada. Si el usuario no existe, no finalizó el registro o el whitebrand tiene `alwayRegister`, responde con `res: GoToSignup`, `status: 200`, `liveness: true` y un `sessionId` de Face Liveness (AWS Rekognition). Cuando el usuario existe y está validado (`estado = Ok`), responde con `res: GoToLogin`, `status: 201` y `liveness: false`. Cuando el whitebrand tiene `alwayRegister`, el mensaje es `Registrar siempre`.",
+        "tags": ["Register"],
+        "operationId": "searchUser",
+        "security": [{ "WhiteBrandAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SearchRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Respuesta de búsqueda",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SearchResponse"
+                },
+                "examples": {
+                  "notFound": {
+                    "summary": "Usuario no encontrado",
+                    "value": {
+                      "res": "GoToSignup",
+                      "status": 200,
+                      "message": "Usuario no encontrado - Continuar con el registro",
+                      "sessionId": "abc123-session-id",
+                      "liveness": true
+                    }
+                  },
+                  "found": {
+                    "summary": "Usuario encontrado",
+                    "value": {
+                      "res": "GoToLogin",
+                      "status": 201,
+                      "message": "Usuario encontrado",
+                      "liveness": false
+                    }
+                  },
+                  "incompleteRegistration": {
+                    "summary": "Registro incompleto",
+                    "value": {
+                      "res": "GoToSignup",
+                      "status": 200,
+                      "message": "Usuario no finalizo el registro - Continuar con el registro",
+                      "sessionId": "abc123-session-id",
+                      "liveness": true
+                    }
+                  },
+                  "clientNotFound": {
+                    "summary": "Cliente no encontrado",
+                    "value": {
+                      "res": "error",
+                      "status": 400,
+                      "message": "Cliente no encontrado"
+                    }
+                  },
+                  "alwaysRegister": {
+                    "summary": "Whitebrand con registro forzado",
+                    "value": {
+                      "res": "GoToSignup",
+                      "status": 200,
+                      "message": "Registrar siempre",
+                      "sessionId": "abc123-session-id",
+                      "liveness": true
+                    }
+                  },
+                  "searchError": {
+                    "summary": "Error al buscar",
+                    "value": {
+                      "res": "error",
+                      "status": 400,
+                      "message": "Error al buscar el usuario",
+                      "details": {}
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authorization header inválido o ausente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "WhiteBrandAuth": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "Authorization",
+        "description": "Token del whitebrand habilitado"
+      }
+    },
+    "schemas": {
+      "SearchRequest": {
+        "type": "object",
+        "required": ["document", "gender"],
+        "properties": {
+          "document": {
+            "type": "string",
+            "description": "Número de documento (DNI)",
+            "example": "12345678"
+          },
+          "gender": {
+            "type": "string",
+            "description": "Sexo del titular del documento",
+            "example": "M"
+          }
+        }
+      },
+      "SearchResponse": {
+        "type": "object",
+        "properties": {
+          "res": {
+            "type": "string",
+            "description": "Acción a tomar en el cliente: `GoToSignup` (continuar registro), `GoToLogin` (usuario validado), `error` (fallo)",
+            "enum": ["GoToSignup", "GoToLogin", "error"]
+          },
+          "status": {
+            "type": "integer",
+            "description": "Código semántico: 200 (continuar registro / no encontrado), 201 (usuario encontrado y validado), 400 (error de validación)",
+            "enum": [200, 201, 400],
+            "example": 200
+          },
+          "message": {
+            "type": "string",
+            "description": "Mensaje descriptivo del resultado",
+            "enum": [
+              "Registrar siempre",
+              "Usuario no encontrado - Continuar con el registro",
+              "Usuario no finalizo el registro - Continuar con el registro",
+              "Usuario encontrado",
+              "Cliente no encontrado",
+              "Error al buscar el usuario"
+            ],
+            "example": "Usuario no encontrado - Continuar con el registro"
+          },
+          "sessionId": {
+            "type": "string",
+            "description": "ID de sesión de Face Liveness y challenge de App Attest. Presente solo cuando `res` es `GoToSignup` (`liveness: true`).",
+            "example": "abc123-session-id"
+          },
+          "liveness": {
+            "type": "boolean",
+            "description": "Indica si el cliente debe ejecutar la prueba de Face Liveness. `true` cuando `res` es `GoToSignup` (viene con `sessionId`); `false` cuando `res` es `GoToLogin`.",
+            "example": true
+          },
+          "details": {
+            "type": "object",
+            "description": "Detalle del error interno. Presente solo cuando `res` es `error` y ocurre una excepción."
+          }
+        }
+      },
+      "SignupRequest": {
+        "type": "object",
+        "required": ["idDocument", "sessionId"],
+        "properties": {
+          "idDocument": {
+            "type": "object",
+            "required": ["type", "number", "gender", "name", "lastname", "birth", "issue", "expires", "tramit", "nfc", "address", "front", "back", "photo"],
+            "properties": {
+              "type": {
+                "type": "string",
+                "description": "Tipo de DNI: `O` = DNI Tarjeta, `N` = DNI Anterior, `L` = Ultimo DNI",
+                "enum": ["O", "N", "L"],
+                "example": "L"
+              },
+              "number": { "type": "string", "description": "Numero de documento", "example": "35273106" },
+              "gender": {
+                "type": "string",
+                "description": "Sexo del titular: `M` masculino, `F` femenino, `X` no binario",
+                "enum": ["M", "F", "X"],
+                "example": "M"
+              },
+              "name": { "type": "string", "example": "IGNACIO MARTIN" },
+              "lastname": { "type": "string", "example": "ROSA" },
+              "birth": { "type": "string", "description": "Fecha de nacimiento en formato ISO yyyy-MM-dd (distinto al resto de fechas, que van dd/MM/yyyy)", "example": "1990-07-18" },
+              "issue": { "type": "string", "description": "Fecha de emision del DNI (dd/MM/yyyy)", "example": "07/04/2023" },
+              "expires": { "type": "string", "description": "Fecha de vencimiento del DNI (dd/MM/yyyy)", "example": "07/04/2038" },
+              "tramit": { "type": "string", "description": "Numero de tramite del DNI", "example": "00703219306" },
+              "nfc": { "type": "boolean", "description": "Si el documento se leyo por NFC", "example": true },
+              "nfcCode": { "type": "string", "description": "Codigo NFC de 6 digitos (opcional, solo si nfc = true)", "example": "123456" },
+              "example": { "type": "string", "description": "Ejemplar del DNI: A/B/C... (opcional)", "example": "C" },
+              "address": { "type": "string", "example": "Av. Siempre Viva 123" },
+              "front": { "type": "string", "description": "Frente del DNI en base64 (JPEG/PNG)", "example": "<base64>" },
+              "back": { "type": "string", "description": "Dorso del DNI en base64", "example": "<base64>" },
+              "photo": { "type": "string", "description": "Foto del documento (cara) en base64, se compara contra el liveness", "example": "<base64>" }
+            }
+          },
+          "sessionId": {
+            "type": "string",
+            "description": "SessionId de Face Liveness y challenge de App Attest (obtenido en /search o /session).",
+            "example": "7792d95f-7f7e-42a8-87b2-b48c7f7d4ac6"
+          },
+          "idDevice": { "type": "string", "description": "Token del dispositivo (firebase id)" },
+          "os": { "type": "string", "example": "IOS-iPhone15,4" },
+          "version": { "type": "string", "example": "18.7.8" },
+          "esPep": { "type": "boolean", "description": "Indica si es Persona Expuesta Politicamente", "example": false },
+          "vinculoPep": { "type": "string", "example": "La misma persona" },
+          "cargoPep": { "type": "string" },
+          "esSujetoObligado": { "type": "boolean", "example": false },
+          "tipoSujetoObligado": { "type": "string" }
+        }
+      },
+      "SignupResponse": {
+        "type": "object",
+        "properties": {
+          "res": {
+            "type": "string",
+            "description": "Resultado del registro: `ok` (alta/revancha generada) o `error`.",
+            "enum": ["ok", "error"],
+            "example": "ok"
+          },
+          "status": {
+            "type": "integer",
+            "example": 200
+          },
+          "message": {
+            "type": "string",
+            "description": "Mensaje del resultado. `chance` indica que la similitud quedó en banda intermedia y se requiere responder una pregunta de conocimiento.",
+            "example": "chance"
+          },
+          "similarity": {
+            "type": "number",
+            "description": "Porcentaje de similitud entre la imagen de referencia del liveness y la foto del documento.",
+            "example": 82.5
+          },
+          "confidence": {
+            "type": "number",
+            "description": "Nivel de confianza de la prueba de vida (Face Liveness). Presente cuando la prueba de vida no supera el umbral.",
+            "example": 42.1
+          },
+          "question": {
+            "type": "object",
+            "description": "Pregunta de conocimiento a responder. Presente solo cuando el resultado es revancha (`message: chance`).",
+            "properties": {
+              "id": { "type": "string", "example": "7" },
+              "text": { "type": "string", "example": "Tiene cuenta en alguno de estos Bancos" },
+              "0": { "type": "string" },
+              "1": { "type": "string" },
+              "2": { "type": "string" },
+              "3": { "type": "string", "example": "Ninguna es correcta" }
+            }
+          },
+          "authToken": {
+            "type": "string",
+            "description": "JWT del registro. El payload incluye `attestVrf` (boolean) junto a idUsuario, flow, dni, etc. Necesario para `/chance` y los flujos posteriores."
+          },
+          "iduser": {
+            "type": "integer",
+            "description": "ID del usuario creado/actualizado.",
+            "example": 12345
+          },
+          "telefonoVrf": {
+            "type": "boolean",
+            "example": false
+          },
+          "emailVrf": {
+            "type": "boolean",
+            "example": false
+          },
+          "addressVrf": {
+            "type": "boolean",
+            "example": false
+          },
+          "attestVrf": {
+            "type": "boolean",
+            "description": "true si este signup trajo una assertion de App Attest válida. También va firmado dentro del payload del authToken.",
+            "example": false
+          },
+          "requireData": {
+            "type": "object",
+            "description": "Settings del whitebrand que indican cómo continuar el flujo (mail/phone/addressValidationMandatory)."
+          },
+          "details": {
+            "type": "object",
+            "description": "Detalle del error. Presente solo cuando `res` es `error`."
+          }
+        }
+      },
+      "AppAttestChallengeResponse": {
+        "type": "object",
+        "properties": {
+          "challenge": {
+            "type": "string",
+            "description": "Nonce para attestKey / POST /attest/enroll. No es un sessionId de liveness.",
+            "example": "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+          }
+        }
+      },
+      "AppAttestEnrollRequest": {
+        "type": "object",
+        "required": ["keyId", "attestation", "challenge"],
+        "properties": {
+          "keyId": {
+            "type": "string",
+            "description": "Identificador de la key de App Attest (base64)"
+          },
+          "attestation": {
+            "type": "string",
+            "description": "Attestation object de Apple en base64"
+          },
+          "challenge": {
+            "type": "string",
+            "description": "Nonce de GET /attest/challenge (recomendado). También acepta un sessionId de liveness si ya estaba persistido."
+          }
+        }
+      },
+      "AppAttestEnrollResponse": {
+        "type": "object",
+        "properties": {
+          "res": { "type": "string", "enum": ["ok", "error"] },
+          "status": { "type": "integer", "example": 200 },
+          "message": { "type": "string" },
+          "keyId": { "type": "string" },
+          "details": { "type": "string" }
+        }
+      },
+      "UnauthorizedResponse": {
+        "type": "object",
+        "properties": {
+          "message": {
+            "type": "string",
+            "example": "Please make sure your request has a valid Authorization header"
+          }
+        }
+      },
+      "LegalDocumentResponse": {
+        "type": "object",
+        "properties": {
+          "res": {
+            "type": "string",
+            "enum": ["ok", "error"]
+          },
+          "status": {
+            "type": "integer",
+            "example": 200
+          },
+          "brand": {
+            "type": "string",
+            "description": "ID de la marca blanca (ej. kiwipayauth)",
+            "example": "kiwipayauth"
+          },
+          "brandName": {
+            "type": "string",
+            "description": "Nombre para mostrar de la marca",
+            "example": "Kiwipay Auth"
+          },
+          "type": {
+            "type": "string",
+            "enum": ["tyc", "privacy"]
+          },
+          "html": {
+            "type": "string",
+            "description": "Contenido HTML del documento legal"
+          },
+          "message": {
+            "type": "string",
+            "description": "Mensaje de error cuando res es error"
+          }
+        }
+      },
+      "Localidad": {
+        "type": "object",
+        "properties": {
+          "name": { "type": "string", "example": "25 DE MAYO" },
+          "code": {
+            "type": "string",
+            "description": "Código UTA 2020",
+            "example": "068540854100000"
+          }
+        }
+      },
+      "Municipio": {
+        "type": "object",
+        "properties": {
+          "name": { "type": "string" },
+          "localidades": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/Localidad" }
+          }
+        }
+      },
+      "Departamento": {
+        "type": "object",
+        "properties": {
+          "name": { "type": "string" },
+          "municipios": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/Municipio" }
+          }
+        }
+      },
+      "Provincia": {
+        "type": "object",
+        "properties": {
+          "name": { "type": "string", "example": "BUENOS AIRES" },
+          "departamentos": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/Departamento" }
+          },
+          "departamentos_selectable": {
+            "type": "boolean",
+            "description": "Si el nivel departamento/partido es seleccionable en UI",
+            "example": true
+          },
+          "departamento_label": {
+            "type": "string",
+            "description": "Etiqueta UI para el nivel departamento",
+            "example": "Partido"
+          },
+          "municipios_selectable": {
+            "type": "boolean",
+            "description": "Si el nivel municipio es seleccionable en UI",
+            "example": true
+          },
+          "municipio_label": {
+            "type": "string",
+            "description": "Etiqueta UI para el nivel municipio",
+            "example": "Municipio"
+          },
+          "localidad_label": {
+            "type": "string",
+            "description": "Etiqueta UI para el nivel localidad",
+            "example": "Localidad"
+          }
+        }
+      },
+      "LocalitiesResponse": {
+        "type": "object",
+        "properties": {
+          "provincias": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/Provincia" }
+          }
+        }
+      },
+      "UpdateAddressRequest": {
+        "type": "object",
+        "required": ["token", "pais", "provincia", "localidad", "codigoPostal", "calle", "numero"],
+        "properties": {
+          "token": {
+            "type": "string",
+            "description": "authToken emitido en signup/auth (mismo que email/teléfono)"
+          },
+          "pais": { "type": "string", "description": "ISO 2", "example": "AR" },
+          "provincia": { "type": "string", "example": "BUENOS AIRES" },
+          "localidad": { "type": "string", "example": "25 DE MAYO" },
+          "codigoPostal": { "type": "string", "example": "6660" },
+          "calle": { "type": "string", "example": "Av. Siempre Viva" },
+          "numero": { "type": "string", "example": "123" },
+          "piso": { "type": "string", "example": "2" },
+          "depto": { "type": "string", "example": "B" },
+          "codigoUta": {
+            "type": "string",
+            "description": "Código UTA de la localidad (opcional, campo `code` del catálogo AR_min.json)",
+            "example": "068540854100000"
+          }
+        }
+      },
+      "UpdateAddressResponse": {
+        "type": "object",
+        "properties": {
+          "res": { "type": "string", "enum": ["ok", "error"] },
+          "status": { "type": "integer", "example": 200 },
+          "message": {
+            "type": "string",
+            "description": "Estado resultante (`Ok` / `Verificar`) o mensaje de error"
+          },
+          "addressVrf": { "type": "boolean", "example": true }
+        }
+      }
+    }
+  }
+}
