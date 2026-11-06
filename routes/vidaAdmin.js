@@ -34,6 +34,17 @@ const hasPermission = function(permission) {
 }
 
 
+// Alcanza con tener alguno de los permisos (los textos los usan Auditoria, Notificaciones y quien administra los textos)
+const hasAnyPermission = function(permissions) {
+  return async (req, res, next) => {
+      if (!permissions.some((p) => req.user.newPermissions.indexOf(p) !== -1)) {
+          return res.status(200).json({ error: 1, data: "Error de permisos" })
+      }
+      next();
+  }
+}
+
+
 router.get('/health', function (req, res, next) {res.json({status: 'UP'});});
 router.post('/login', services.users.login); // --
 router.post('/forgot', services.users.forgot); //
@@ -108,6 +119,15 @@ router.delete('/auth/auditoria/validaciones/:id_validacion', adminMiddleware,has
 //CONFIGURACION (solo Administrador de TUID)
 router.get('/auth/configuracion/auditoria', adminMiddleware, hasPermission("CONFIGURACION"), services.configuracion.getAuditoria);
 router.post('/auth/configuracion/auditoria', adminMiddleware, hasPermission("CONFIGURACION"), services.configuracion.setAuditoria);
+
+//TEXTOS (mensajes de WhatsApp, correos y notificaciones): leer y armar contactos = Auditoria / Notificaciones / Textos; editar = solo Administrador (TEXTOS)
+router.get('/auth/textos', adminMiddleware, hasAnyPermission(["TEXTOS","AUDITORIA","NOTIFICACIONES"]), services.textos.list);
+router.get('/auth/textos/contacto', adminMiddleware, hasAnyPermission(["TEXTOS","AUDITORIA"]), services.textos.contacto);
+router.post('/auth/textos/preview', adminMiddleware, hasPermission("TEXTOS"), services.textos.preview);
+router.post('/auth/textos', adminMiddleware, hasPermission("TEXTOS"), services.textos.create);
+router.put('/auth/textos/:id', adminMiddleware, hasPermission("TEXTOS"), services.textos.update);
+router.get('/auth/textos/:id/historial', adminMiddleware, hasPermission("TEXTOS"), services.textos.historial);
+router.post('/auth/textos/:id/restaurar/:idHistorial', adminMiddleware, hasPermission("TEXTOS"), services.textos.restaurar);
 
 //REGISTROMANUAL
 router.get('/auth/manuales', adminMiddleware, hasPermission("REGISTROMANUAL"), services.manuales.list);//PROBAR

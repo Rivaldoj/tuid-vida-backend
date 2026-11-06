@@ -39,6 +39,9 @@ async function sembrar() {
     // tablas del interruptor de auditoria (migracion de produccion, aplicada solo en la BD local de prueba)
     await q(require('fs').readFileSync(path.join(__dirname, '../scripts/sql/configuracion.sql'), 'utf8'));
     await q("UPDATE configuracion SET valor = 'ON' WHERE clave = 'auditoria_certificaciones'");
+    // tablas del Modulo de Textos (migracion de produccion, aplicada solo en la BD local de prueba)
+    await q('DROP TABLE IF EXISTS textos_historial; DROP TABLE IF EXISTS textos;');
+    await q(require('fs').readFileSync(path.join(__dirname, '../scripts/sql/textos.sql'), 'utf8'));
     const { ana, beto, carlos, dora } = PERSONAS;
     await q("INSERT IGNORE INTO empresa (id, tipo, periodicidad) VALUES ('OTRABANCO','D',6)");
     await q("UPDATE usuario SET auditor='aud1@tuid.test', empresa='TESTBANCO' WHERE cuil IN (?, ?)", [ana.cuil, carlos.cuil]);

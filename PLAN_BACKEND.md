@@ -35,6 +35,21 @@ Se agregan (todos combinables, con parámetros de SQL, sin concatenar texto del 
 - Falta: los dos combos en la pantalla del panel (el código del panel no está en este repositorio).
 - Pruebas: `node test/db/auditoria_filtros.test.js` (8 casos, incluido un intento de inyección).
 
+## 0. Módulo de Textos (2026-11-06) — HECHO (probado en la BD local y en el panel, no desplegado)
+Mensajes de WhatsApp, correos y notificaciones push editables por el Administrador, sin tocar código ni AWS.
+- **Tablas nuevas** (`scripts/sql/textos.sql`, con 6 textos iniciales): `textos` (clave, canal, nombre, asunto, cuerpo, activo, quién/cuándo)
+  y `textos_historial` (cada cambio guarda la versión anterior; se puede restaurar).
+- **Variables:** `{{nombre}} {{apellido}} {{nombre_completo}} {{cuil}} {{empresa}} {{fecha}} {{auditor}}`. Es un reemplazo de texto (no ejecuta nada);
+  las variables que no existen se detectan en la vista previa y no dejan guardar.
+- **API del panel:** `GET/POST /vida/admin/auth/textos`, `PUT /auth/textos/:id`, `GET /auth/textos/:id/historial`, `POST /auth/textos/:id/restaurar/:idHistorial`,
+  `POST /auth/textos/preview`. Editar = solo Administrador de TUID (permiso nuevo `TEXTOS`); leer la lista = TEXTOS, AUDITORIA o NOTIFICACIONES.
+- **Contacto desde una ficha:** `GET /auth/textos/contacto?tipo=validacion|registracion&id=<id>&clave=<CLAVE>` devuelve el texto ya armado con los datos de la
+  persona y los enlaces `https://wa.me/<telefono>?text=...` y `mailto:...` (si falta teléfono o correo válido, no arma el enlace y avisa).
+  Supuesto para wa.me: teléfonos argentinos; si no traen 54 se agrega 54 y el 9 de celular.
+- **Panel:** pantalla "Textos" (lista por canal, edición con variables para insertar, vista previa con datos de ejemplo, historial y restaurar, activar/desactivar).
+- **Pruebas:** `node test/textos.test.js` (variables, teléfonos, enlaces) y `node test/db/textos.test.js` (alta, validaciones, historial, restaurar, contacto, permiso).
+- Pendiente: los botones de WhatsApp/correo en la ficha de Auditoría y el combo de mensajes prearmados en Notificaciones (canal `push`) usan estos textos.
+
 ## 2. Botones WhatsApp / email en la ficha de auditoría
 - La pantalla del panel de administración NO está en este repositorio (el backend solo expone la API).
 - Propuesta: endpoint `GET /vida/admin/auth/auditoria/contacto/:id_validacion` que devuelve los datos del usuario y los enlaces
