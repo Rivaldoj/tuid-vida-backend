@@ -5,3 +5,5 @@ config/local*.json
 logs/
 uploads/
 *.log
+config/development.json
+config/olddb.txt
