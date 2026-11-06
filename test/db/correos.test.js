@@ -48,6 +48,12 @@ async function llamar(handler, req) {
     assert.strictEqual(m.asunto, 'TuID Vida: necesitamos que repita su Fe de Vida');
     assert.ok(m.html.includes('https://tuid.ar/images/logos/Logo-vida30.png'), 'lleva el logo');
     assert.ok(m.html.includes('https://s3.example.test/login/11111111F.jpeg'), 'lleva la foto del ultimo login');
+    assert.ok(/width="140"/.test(m.html) && !/width="320"/.test(m.html), 'la foto va chica en el correo');
+    const enlaceFoto = (m.html.match(/<a href="(https:\/\/api\.autenticartuid\.com\/vida\/f\/[A-Za-z0-9_-]{20,40})"/) || [])[1];
+    assert.ok(enlaceFoto, 'la foto chica enlaza a la pagina de la foto (enlace propio)');
+    assert.ok(m.html.includes('Toque la foto para verla más grande'));
+    const [filaEnlace] = await db.sync_query('SELECT vence_en > NOW() AS vigente FROM fotos_enlaces WHERE codigo = ?', [enlaceFoto.split('/vida/f/')[1]]);
+    assert.ok(filaEnlace && filaEnlace.vigente, 'el enlace existe y esta vigente');
     assert.deepStrictEqual(firmas[0], ['login/11111111F.jpeg', 7 * 24 * 3600], 'la foto del correo dura 7 dias');
     assert.ok(m.html.includes('Hola Ana Maria Prueba'), 'texto con los datos de la persona');
     assert.ok(m.html.includes('27-11111111-7'));

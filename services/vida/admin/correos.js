@@ -9,10 +9,10 @@ const PLANTILLA = path.join(__dirname, '../../../html/mails/certificacion_observ
 const SEGUNDOS_FOTO_CORREO = fotos.DIAS_POR_DEFECTO * 24 * 3600; // la foto del correo vence junto con los enlaces (tope de S3: 7 dias)
 
 // Arma el HTML del correo. Todo lo que viene de la base se escapa; `fotoUrl` solo se acepta si es https.
-async function armarCorreo({ titulo, nombre, cuil, fecha, cuerpoTexto, fotoUrl }) {
-    const foto = typeof fotoUrl === 'string' && /^https:\/\//.test(fotoUrl) ? fotoUrl : '';
+async function armarCorreo({ titulo, nombre, cuil, fecha, cuerpoTexto, fotoUrl, fotoEnlace }) {
+    const soloHttps = (u) => (typeof u === 'string' && /^https?:\/\/[^\s"'<>]+$/.test(u) && (/^https:\/\//.test(u) || /^http:\/\/localhost/.test(u)) ? u : '');
     return ejs.renderFile(PLANTILLA, {
-        title: titulo, nombre, cuil, fecha, fotoUrl: foto, cuerpoHtml: textos.aParrafosHtml(cuerpoTexto)
+        title: titulo, nombre, cuil, fecha, fotoUrl: soloHttps(fotoUrl), fotoEnlace: soloHttps(fotoEnlace), cuerpoHtml: textos.aParrafosHtml(cuerpoTexto)
     }, { async: false });
 }
 
@@ -40,15 +40,14 @@ module.exports.crearEnviarCorreo = function (deps) {
                 nombre, apellido, nombre_completo: `${nombre} ${apellido}`.trim(), cuil: textos.formatoCuil(p.cuil),
                 empresa: p.empresa || '', fecha, auditor: String(p.auditor || '').replace(/^ALERTA:/, ''), enlace_foto: ''
             };
-            // Si el texto usa {{enlace_foto}} tambien se crea el enlace con confirmacion de CUIL
-            if (/\{\{\s*enlace_foto\s*\}\}/i.test(String(texto.cuerpo))) {
-                const e = await fotos.crearEnlace(deps.db, { idValidacion: id, idUsuario: p.id_usuario, creadoPor: req.user && req.user.email });
-                datos.enlace_foto = deps.urlBase() + '/vida/f/' + e.codigo;
-            }
+            // La foto del correo va CHICA y enlazada a la pagina de la foto (enlace propio que vence): se crea siempre el enlace
+            const e = await fotos.crearEnlace(deps.db, { idValidacion: id, idUsuario: p.id_usuario, creadoPor: req.user && req.user.email });
+            const fotoEnlace = deps.urlBase() + '/vida/f/' + e.codigo;
+            datos.enlace_foto = fotoEnlace;
             const cuerpoTexto = textos.render(texto.cuerpo, datos).texto;
             const asunto = textos.render(texto.asunto || 'TuID Vida', datos).texto;
             const fotoUrl = deps.firmarFoto(fotos.claveFotoCertificacion(p.dni, p.sexo), SEGUNDOS_FOTO_CORREO);
-            const html = await armarCorreo({ titulo: asunto, nombre, cuil: datos.cuil, fecha, cuerpoTexto, fotoUrl });
+            const html = await armarCorreo({ titulo: asunto, nombre, cuil: datos.cuil, fecha, cuerpoTexto, fotoUrl, fotoEnlace });
 
             await deps.enviar(html, asunto, p.email);
             const marca = ` Mail:observada(${fecha})`;
