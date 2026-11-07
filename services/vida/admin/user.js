@@ -499,39 +499,18 @@ module.exports.notification = async (req,res,next)=>{
             res.response.data = "No se encontraron resultados";
             res.status(201).json(res.response);
         } else {
-            var headersOpt = {
-                "content-type": "application/json",
-                "Authorization": require('./../../../utils/push').authorizationHeader()
-            };
             var enviados = 0;
             let finish = lodash.after(rows.length, function () {
-                
                 res.response.error = 0;
                 res.response.data = 'mensajes:' + rows.length + ' mensajes enviados:' + enviados;
                 res.status(201).json(res.response);
             });
             rows.forEach(function (row) {
-                request(
-                    {
-                        method: 'POST',
-                        uri: 'https://fcm.googleapis.com/fcm/send',
-                        headers: headersOpt,
-                        json: true,
-                        body: {
-                            "to": row.id_device,
-                            "notification": {
-                                "title": row.nombre + ' ' + row.apellido + ' ' + asunto,
-                                "body": mensaje
-                            }
-                        }
-                    }, function (error, response, body) {
-                        //Print the Response
-                        // si el envio falla, "body" puede venir vacio: antes esto tiraba el proceso
-                        if(body && body.success === 1){
-                            enviados = enviados + 1;
-                        }
-                        finish();
-                    });
+                // FCM HTTP v1 (la API anterior fue dada de baja): ver utils/push.js
+                push.sendAsync(row.id_device, row.nombre + ' ' + row.apellido + ' ' + asunto, mensaje).then(function (r) {
+                    if (r.ok) enviados = enviados + 1; else console.log('[push] no se pudo enviar:', r.motivo);
+                    finish();
+                });
             });
         }
     });
@@ -678,7 +657,7 @@ function getUserPermissions(user){
         permissions.splice(permissions.indexOf('ALERTAS'), 1);
     }
     // Configuracion global (por ejemplo el interruptor de auditoria): solo el Administrador de TUID
-    if (user.empresa == "TUID" && user.rol != "U") { permissions.push("CONFIGURACION"); permissions.push("TEXTOS"); }
+    if (user.empresa == "TUID" && user.rol != "U") { permissions.push("CONFIGURACION"); permissions.push("TEXTOS"); permissions.push("EMPRESAS"); }
     return permissions;
 
 }

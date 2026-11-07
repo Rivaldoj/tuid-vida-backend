@@ -16,7 +16,11 @@ CREATE TABLE usuario (
   KEY (cuil), KEY (dni, sexo)
 );
 CREATE TABLE empresa (
-  id VARCHAR(50) PRIMARY KEY, tipo CHAR(1), periodicidad INT, img VARCHAR(255) NULL, link VARCHAR(255) NULL
+  id VARCHAR(50) NOT NULL, nombre VARCHAR(100) DEFAULT NULL, direcciones TINYINT(1) DEFAULT 0, costo_validacion DOUBLE DEFAULT 0.2,
+  periodicidad TINYINT UNSIGNED DEFAULT 1, fecha_actual DATE DEFAULT NULL, fecha_proxima DATE DEFAULT NULL, entidad INT DEFAULT NULL,
+  visible TINYINT(1) DEFAULT 0, img VARCHAR(255) DEFAULT NULL, emails TINYINT(1) DEFAULT 0, telefonos TINYINT(1) DEFAULT 0,
+  ultimo_archivo DATETIME DEFAULT NULL, ultima_notificacion DATETIME DEFAULT NULL, notificaciones TINYINT NOT NULL DEFAULT 0,
+  email VARCHAR(100) DEFAULT NULL, tipo CHAR(1) NOT NULL DEFAULT 'E', link VARCHAR(255) DEFAULT NULL, PRIMARY KEY (id)
 );
 CREATE TABLE usuario_empresa (
   id INT AUTO_INCREMENT PRIMARY KEY, cuil VARCHAR(15), empresa VARCHAR(50),
@@ -31,4 +35,5 @@ CREATE TABLE auditoria (
   KEY (id_usuario), KEY (session_id)
 );
 
-CREATE TABLE cliente (id_usuario INT AUTO_INCREMENT PRIMARY KEY, email VARCHAR(100), empresa VARCHAR(50), rol CHAR(1), activo TINYINT DEFAULT 1);
+CREATE TABLE cliente (id_usuario INT AUTO_INCREMENT PRIMARY KEY, email VARCHAR(100), password VARCHAR(100) NULL, empresa VARCHAR(50), rol CHAR(1), activo TINYINT DEFAULT 1,
+  fecha_ultima DATETIME NULL, resetPasswordToken VARCHAR(64) NULL, resetPasswordExpires DATETIME NULL, reintento INT DEFAULT 0);

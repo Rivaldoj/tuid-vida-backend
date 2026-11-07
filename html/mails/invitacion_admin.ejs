@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title><%= title %></title>
+</head>
+<body style="margin:0;padding:0;background:#f2f6f7;font-family:Arial,Helvetica,sans-serif;color:#2b2a2a;">
+<table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#f2f6f7;">
+  <tr><td align="center" style="padding:20px 10px;">
+    <table width="600" cellpadding="0" cellspacing="0" border="0" style="max-width:600px;width:100%;background:#ffffff;border-radius:8px;">
+      <tr><td align="center" style="padding:22px 20px 8px 20px;">
+        <img src="https://tuid.ar/images/logos/Logo-vida30.png" alt="TuID Vida" width="170" style="display:block;border:0;height:auto;">
+      </td></tr>
+      <tr><td style="padding:10px 28px 22px 28px;font-size:17px;line-height:1.5;">
+        <p style="margin:0 0 14px 0;">Hola,</p>
+        <p style="margin:0 0 14px 0;">Se creó su cuenta de <strong>Administrador de <%= empresa %></strong> en el panel de TuID Vida. Desde ahí podrá habilitar a los usuarios de su empresa.</p>
+        <p style="margin:0 0 8px 0;">Para elegir su clave:</p>
+        <ol style="margin:0 0 14px 18px;padding:0;">
+          <li>Entre en <a href="<%= urlPanel %>/reset-password" style="color:#006e7b;"><%= urlPanel %>/reset-password</a></li>
+          <li>Ingrese este código y su nueva clave:</li>
+        </ol>
+        <p style="margin:0 0 14px 0;text-align:center;font-size:24px;letter-spacing:2px;font-weight:bold;background:#e9f6f8;border-radius:6px;padding:12px;"><%= token %></p>
+        <p style="margin:0 0 14px 0;font-size:15px;color:#555;">El código vale <%= horas %> horas y se puede usar una sola vez. Su usuario es <strong><%= email %></strong>. Si usted no esperaba este correo, ignórelo.</p>
+        <p style="margin:0;">Equipo TuID Vida</p>
+      </td></tr>
+    </table>
+  </td></tr>
+</table>
+</body>
+</html>

@@ -78,6 +78,15 @@ router.post('/auth/updateNotificaciones', adminMiddleware, services.users.update
 router.put('/auth/updateFallecido',adminMiddleware,hasPermission("FALLECIDOS"),  services.users.updateFallecido);
 router.post('/auth/reminder', adminMiddleware, services.users.reminder);
 router.post('/auth/notification', adminMiddleware, services.users.notification);
+//NOTIFICACIONES push por rango de fechas y con mensajes prearmados (Modulo de Textos, canal push)
+const notificacionesSrv = require('../services/vida/admin/notificaciones').crear({
+  db: { sync_query: (...args) => VIDA_DB.sync_query(...args) },
+  push: require('../utils/push')
+});
+router.get('/auth/notificaciones/mensajes', adminMiddleware, hasPermission("NOTIFICACIONES"), notificacionesSrv.mensajes);
+router.post('/auth/notificaciones/destinatarios', adminMiddleware, hasPermission("NOTIFICACIONES"), notificacionesSrv.destinatarios);
+router.post('/auth/notificaciones/enviar', adminMiddleware, hasPermission("NOTIFICACIONES"), notificacionesSrv.enviar);
+router.get('/auth/notificaciones/historial', adminMiddleware, hasPermission("NOTIFICACIONES"), notificacionesSrv.historial);
 router.get('/auth/download', adminMiddleware, services.registrations.download);
 router.post('/auth/upload', adminMiddleware, upload.single('file'),services.users.upload);
 router.post('/auth/manuallyregister', adminMiddleware, services.registrations.manuallyRegister);
@@ -130,6 +139,20 @@ router.post('/auth/auditoria/enviar-correo', adminMiddleware, hasPermission("AUD
   },
   urlBase: () => services.textos.urlBasePublica()
 }));
+
+//EMPRESAS y sus ADMINISTRADORES (solo Administrador de TUID). El administrador de cada empresa habilita a sus usuarios desde "Gestionar usuarios".
+const empresasSrv = require('../services/vida/admin/empresas').crear({
+  db: { sync_query: (...args) => VIDA_DB.sync_query(...args) },
+  enviar: async (plantilla, params, para) => { require('../utils/mail').send(plantilla, params, para, null, null); }, // remitente por defecto del sistema (aws.emailFrom)
+  urlPanel: () => (CONFIG.has('vida.panelUrl') ? String(CONFIG.get('vida.panelUrl')).replace(/\/+$/, '') : 'https://vida.autenticartuid.com')
+});
+router.get('/auth/empresas', adminMiddleware, hasPermission("EMPRESAS"), empresasSrv.listar);
+router.post('/auth/empresas', adminMiddleware, hasPermission("EMPRESAS"), empresasSrv.crear);
+router.put('/auth/empresas/:id', adminMiddleware, hasPermission("EMPRESAS"), empresasSrv.actualizar);
+router.get('/auth/empresas/:id/cuentas', adminMiddleware, hasPermission("EMPRESAS"), empresasSrv.cuentas);
+router.post('/auth/empresas/:id/administradores', adminMiddleware, hasPermission("EMPRESAS"), empresasSrv.invitar);
+router.post('/auth/empresas/:id/cuentas/:idUsuario/estado', adminMiddleware, hasPermission("EMPRESAS"), empresasSrv.estadoCuenta);
+router.post('/auth/empresas/:id/acceso', adminMiddleware, hasPermission("EMPRESAS"), empresasSrv.accesoEmpresa);
 
 //TEXTOS (mensajes de WhatsApp, correos y notificaciones): leer y armar contactos = Auditoria / Notificaciones / Textos; editar = solo Administrador (TEXTOS)
 router.get('/auth/textos', adminMiddleware, hasAnyPermission(["TEXTOS","AUDITORIA","NOTIFICACIONES"]), services.textos.list);
