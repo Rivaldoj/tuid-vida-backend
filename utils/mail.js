@@ -68,7 +68,24 @@ const sendHtml = (html, to, title, from, cc) => {
   sendTemplatedEmail(html, to, title, from, cc);
 }
 
+// Igual que sendHtml pero devuelve una promesa: el que llama puede avisar si el correo no salio (por ejemplo el correo de recuperar clave).
+// Usa SES por la API de AWS con las credenciales del servidor (rol/entorno): no hay usuario ni clave SMTP en el codigo.
+const sendHtmlAsync = (html, to, title, from) => {
+  if (TESTING) return Promise.resolve();
+  if (from == null || from == "") from = CONFIG.get("aws").emailFrom;
+  return new AWS.SES({apiVersion: '2010-12-01'}).sendEmail({
+    Destination: { ToAddresses: [to] },
+    Message: {
+      Body: { Html: { Charset: "UTF-8", Data: html } },
+      Subject: { Charset: 'UTF-8', Data: title }
+    },
+    Source: from,
+    ReplyToAddresses: [from]
+  }).promise();
+}
+
 module.exports = {
   send,
+  sendHtmlAsync,
   sendHtml
   }

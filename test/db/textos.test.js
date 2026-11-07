@@ -7,7 +7,7 @@ const util = require('util');
 const mysql = require('mysql');
 const { PERSONAS } = require('./setup');
 
-global.CONFIG = { get: () => ({}), has: () => false };
+global.CONFIG = { get: (k) => (k === 'security.aesKey' ? 'k'.repeat(32) : {}), has: (k) => k === 'security.aesKey' };
 const pool = mysql.createPool({ host: '127.0.0.1', port: 3307, user: 'root', password: '', database: 'vida_test', multipleStatements: true });
 global.VIDA_DB = pool;
 global.VIDA_DB.sync_query = util.promisify(pool.query).bind(pool);

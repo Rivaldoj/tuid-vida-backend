@@ -4,6 +4,8 @@ DROP TABLE IF EXISTS usuario_empresa;
 DROP TABLE IF EXISTS empresa;
 DROP TABLE IF EXISTS usuario;
 DROP TABLE IF EXISTS cliente;
+DROP TABLE IF EXISTS password;
+DROP TABLE IF EXISTS logueo;
 
 CREATE TABLE usuario (
   id_usuario INT AUTO_INCREMENT PRIMARY KEY,
@@ -35,5 +37,7 @@ CREATE TABLE auditoria (
   KEY (id_usuario), KEY (session_id)
 );
 
-CREATE TABLE cliente (id_usuario INT AUTO_INCREMENT PRIMARY KEY, email VARCHAR(100), password VARCHAR(100) NULL, empresa VARCHAR(50), rol CHAR(1), activo TINYINT DEFAULT 1,
+CREATE TABLE cliente (id_usuario INT AUTO_INCREMENT PRIMARY KEY, email VARCHAR(100), password VARCHAR(255) NULL, empresa VARCHAR(50), rol CHAR(1), activo TINYINT DEFAULT 1, retry INT DEFAULT 0,
   fecha_ultima DATETIME NULL, resetPasswordToken VARCHAR(64) NULL, resetPasswordExpires DATETIME NULL, reintento INT DEFAULT 0);
+CREATE TABLE password (id INT AUTO_INCREMENT PRIMARY KEY, id_usuario INT, fecha DATETIME, password VARCHAR(255), KEY (id_usuario));
+CREATE TABLE logueo (id INT AUTO_INCREMENT PRIMARY KEY, id_usuario INT, fecha DATETIME);

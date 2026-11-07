@@ -8,7 +8,7 @@ const util = require('util');
 const mysql = require('mysql');
 const express = require('express');
 
-global.CONFIG = { get: () => ({ bucketName: 'x', approvePercentage: 90, rangoES: 1 }) };
+global.CONFIG = { get: (k) => (k === 'security.aesKey' ? 'k'.repeat(32) : { bucketName: 'x', approvePercentage: 90, rangoES: 1 }), has: (k) => k === 'security.aesKey' };
 const Module = require('module');
 const orig = Module._load;
 Module._load = function (req) {

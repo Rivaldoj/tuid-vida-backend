@@ -4,6 +4,7 @@ const tokenizer = require('../../../utils/tokenizer');
 const slack = require('../../../utils/slack');
 const mail = require('../../../utils/mail');
 const push = require('../../../utils/push');
+const passwords = require('../../../utils/password');
 
 const request = require('request');
 const fs = require('fs');
@@ -12,7 +13,6 @@ const s3 = new AWS.S3();
 const csv = require('fast-csv');
 const lodash         = require("lodash");
 const async = require('async');
-const nodemailer = require('nodemailer');
 const vidaConfig = CONFIG.get('vida');
 
 module.exports.login = async function(req, res) {
@@ -21,10 +21,10 @@ module.exports.login = async function(req, res) {
         "error": 1,
         "data": "Error Occured!"
     };
-    console.log("1");
     var email = req.body.email;
-    var password = crypto.createHash('sha1').update(req.body.password).digest('hex');
-    var password1 = (!req.body.password1)?null:crypto.createHash('sha1').update(req.body.password1).digest('hex');
+    var passwordPlano = String(req.body.password || '');
+    var password1Plano = (!req.body.password1) ? null : String(req.body.password1);
+    var password1 = password1Plano; // null = no esta cambiando la clave
 
     VIDA_DB.query('SELECT DATEDIFF(now(),max(p.fecha)) as dias,c.*, e.direcciones, e.emails, e.telefonos FROM cliente c join empresa e on (e.id = c.empresa) left join password p on (c.id_usuario = p.id_usuario) where c.email = ?;', [email], 
         function(err, rows,fields) {
@@ -34,7 +34,12 @@ module.exports.login = async function(req, res) {
             var retry = rows[0].reintento + 1;
             var id_usuario = rows[0].id_usuario;
             var cambio_pass = rows[0].dias;
-            if (rows[0].password === password && retry < 4) {
+            var verif = passwords.verificar(passwordPlano, rows[0].password);
+            if (verif.ok && verif.actualizar && passwords.scryptActivado()) {
+                // la clave estaba guardada en el formato viejo (SHA1): se pasa al nuevo
+                VIDA_DB.query('UPDATE cliente SET password = ? WHERE id_usuario = ?', [passwords.paraGuardar(passwordPlano), id_usuario], function (e) { if (e) console.log('[claves] no se pudo actualizar el formato:', e.message); });
+            }
+            if (verif.ok && retry < 4) {
                 VIDA_DB.query('UPDATE cliente SET retry=0 where email=?', [email], function (err) {
                     var permissions = getUserPermissions(rows[0]);
                     rows[0].newPermissions = permissions;
@@ -53,16 +58,19 @@ module.exports.login = async function(req, res) {
                             appData.usuario = rows[0].email;
                             return res.status(200).json(appData);
                         }else{
-                            VIDA_DB.query('SELECT * FROM password WHERE password = ? and id_usuario = ?', [password1, id_usuario], function(err, rows,fields) {
+                            var rechazo = passwords.claveAceptable(password1);
+                            if (rechazo) { appData.error = 1; appData.data = rechazo; return res.status(201).json(appData); }
+                            VIDA_DB.query('SELECT password FROM password WHERE id_usuario = ?', [id_usuario], function(err, rows,fields) {
                                 if (err) { return res.status(201).json(appData)} 
-                                if (rows.length > 0) {
+                                if (rows.some(function (h) { return passwords.verificar(password1, h.password).ok; })) {
                                     appData.error = 1;
                                     appData.data = "Esa contraseña ya fue utilizada";
                                     return res.status(201).json(appData);
                                 } else {
-                                    VIDA_DB.query('INSERT INTO password (id_usuario,fecha,password) VALUES(?,NOW(),?);', [id_usuario, password1], function (err) {
+                                    var guardada = passwords.paraGuardar(password1);
+                                    VIDA_DB.query('INSERT INTO password (id_usuario,fecha,password) VALUES(?,NOW(),?);', [id_usuario, guardada], function (err) {
                                         if (err) {return res.status(201).json(appData)}
-                                        VIDA_DB.query('UPDATE cliente SET password = ?, fecha_ultima = NOW() WHERE id_usuario = ?;', [password1, id_usuario], function (err) {
+                                        VIDA_DB.query('UPDATE cliente SET password = ?, fecha_ultima = NOW() WHERE id_usuario = ?;', [guardada, id_usuario], function (err) {
                                             if (err) { return res.status(201).json(appData) }
                                             appData.error = 0;
                                             appData.fecha_ultima = 'Hoy';
@@ -140,25 +148,14 @@ module.exports.forgot = async function(req, res, next) {
             });  
         },
         function(token, user, done) {
-            var smtpTransport = nodemailer.createTransport({
-                host: 'email-smtp.us-east-1.amazonaws.com',
-                port: 465,
-                secure: true, // true for 465, false for other ports
-                auth: {
-                    user: '***REMOVED***', // generated ethereal user
-                    pass: '***REMOVED***' // generated ethereal password
-                },
-                tls: {
-                    rejectUnauthorized: false
-                }
-            });
             var mailOptions = {
                 to: email,
                 from: 'contacto@autenticartuid.com',
                 subject: 'Confirmacion TuID',
                 html: '<body><p>Esta recibiendo este email, porque usted (o alguien mas) pidio un cambio de contraseña para su cuenta.</p><p>Porfavor ingrese el siguiente token y su nueva contraseña para completar el proceso:</p><p><strong>' + token +'</strong> <p>Si usted no solicito esto, porfavor ignore este email y su password permanecera sin cambios.</p>'
             };
-            smtpTransport.sendMail(mailOptions, function (err) {
+            // SES por la API de AWS (antes: SMTP con usuario y clave escritos en el codigo)
+            require('../../../utils/mail').sendHtmlAsync(mailOptions.html, mailOptions.to, mailOptions.subject, mailOptions.from).then(function () { return null; }, function (err) { return err || new Error('email'); }).then(function (err) {
                 if(err){
                     appData.data = "Error servicio de email";
                     res.status(201).json(appData);
@@ -184,21 +181,22 @@ module.exports.reset = async function(req, res){
     var token = req.body.token;
     async.waterfall([
         function(done) {
-            console.log(token);
             VIDA_DB.query('SELECT * FROM cliente WHERE resetPasswordToken = ? and resetPasswordExpires>NOW()', [token], function (err, user) {
-                if (user === undefined) {
+                if (user === undefined || user.length === 0) {
                     appData.data = 'El token para reseteo de contraseña no existe o a expirado';
                     res.status(201).json(appData);
                 }else if (req.body.password1 === req.body.password2) {
                     var id_usuario = user[0].id_usuario;
-                    var newpassword = crypto.createHash('sha1').update(req.body.password1).digest('hex');
-                    VIDA_DB.query('SELECT * FROM password WHERE password = ? and id_usuario = ?', [newpassword, id_usuario], function(err, rows,fields) {
+                    var rechazo = passwords.claveAceptable(req.body.password1);
+                    if (rechazo) { appData.error = 1; appData.data = rechazo; return res.status(201).json(appData); }
+                    var newpassword = passwords.paraGuardar(req.body.password1);
+                    VIDA_DB.query('SELECT password FROM password WHERE id_usuario = ?', [id_usuario], function(err, rows,fields) {
                         if (err) {
                             appData.error = 1;
                             appData.data = "Error Occured!";
                             res.status(201).json(appData);
                         } else {
-                            if (rows.length > 0) {
+                            if (rows.some(function (h) { return passwords.verificar(req.body.password1, h.password).ok; })) {
                                 appData.error = 1;
                                 appData.data = "Esa contraseña ya fue utilizada";
                                 res.status(201).json(appData);
@@ -292,7 +290,7 @@ module.exports.register = async function(req,res){
     };
     var userData = {
         "email": req.body.email,
-        "password": crypto.createHash('sha1').update(req.body.password).digest('hex'),
+        "password": passwords.paraGuardar(req.body.password),
         "empresa": req.user.empresa,
         "rol": req.body.rol
     };

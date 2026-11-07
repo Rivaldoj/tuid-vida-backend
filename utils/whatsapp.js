@@ -34,7 +34,7 @@ module.exports.sendTemplate = async function (number, template,locale,params, ne
     return new Promise((resolve, reject) => { 
         request.post('https://graph.facebook.com/v13.0/110478498339287/messages',{
             headers: {
-                Authorization: "***REMOVED***"
+                Authorization: CONFIG.get('whatsapp.authorization')
             },
             json: body 
         }, function(err, res, body){
@@ -52,7 +52,7 @@ module.exports.send = async function (number, message, next){
 
     request.post('https://graph.facebook.com/v13.0/110478498339287/messages',{
         headers: {
-            Authorization: "***REMOVED***"
+            Authorization: CONFIG.get('whatsapp.authorization')
         },
         json: {
              "messaging_product": "whatsapp", 
@@ -84,7 +84,7 @@ module.exports.sendTemplateBot = async function (number, template,locale,params,
     return new Promise((resolve, reject) => { 
         request.post('https://graph.facebook.com/v13.0/110478498339287/messages',{
             headers: {
-                Authorization: "***REMOVED***"
+                Authorization: CONFIG.get('whatsapp.authorization')
             },
             json: body 
         }, function(err, res, body){

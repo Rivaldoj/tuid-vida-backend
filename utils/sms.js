@@ -45,13 +45,9 @@ const sendStartPlus = async function(phone, message, callback){
 
 }
 
-let username_old = {
-    "username": "atuid",
-    "password": "***REMOVED***"
-}
-let username = {
-    "username": "auth@tuid.ar",
-    "password": "***REMOVED***"
+// Credenciales del servicio de SMS: salen de la configuracion (sms.username / sms.password), no del codigo
+function credenciales() {
+    return { username: CONFIG.get('sms.username'), password: CONFIG.get('sms.password') };
 }
 var headers = {
     'accept': 'application/json',
@@ -62,7 +58,7 @@ const sendTeleprom = async function(phone, message, callback){
    
     var options = {
         headers: headers,
-        json: username
+        json: credenciales()
     };
     var tel = phone.replace(/ˆ9/,'');
     request.post("https://mayten.cloud/auth", options, (error, response, body) => {
@@ -103,7 +99,7 @@ const sendTeleprom = async function(phone, message, callback){
 const getTelepromCredit = async function( callback){
     var options = {
         headers: headers,
-        json: username
+        json: credenciales()
     };
     request.post("https://mayten.cloud/auth", options, (error, response, body) => {
         

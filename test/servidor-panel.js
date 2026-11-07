@@ -9,8 +9,8 @@ const mysql = require('mysql');
 const express = require('express');
 
 global.CONFIG = {
-    has: () => false,
-    get: (k) => k === 'jwt'
+    has: (k) => k === 'security.aesKey',
+    get: (k) => k === 'security.aesKey' ? 'k'.repeat(32) : k === 'jwt'
         ? { key: 'clave-de-prueba', time: 1, units: 'days', authenticatorAdmin: { key: 'clave-admin-de-prueba', time: 1, units: 'days' }, vidaAdmin: { time: 1, units: 'days' } }
         : { bucketName: 'x', approvePercentage: 90, rangoES: 1, whitebrands: [] }
 };

@@ -1,5 +1,5 @@
 var dbr = require('dynamsoft-javascript-barcode');
-dbr.BarcodeReader.productKeys = 't0172ZQYAAFObiibGORJka+dRy+U+95a5oyPW4rddS04p+bMt3w0iO2odxoLi6lk5asbgCXDfcuDRQn+Pgl2xVmK+zmCDhVW+We9N42/2t8noG4HGoCnQHIYChgKGAoYChgKGAoYChgKGAoYGhgaGBoYGhgaGBoYGhgaGBoYFDAsYFjAsYFjAsIBhAcMChv3u66f2hqCpvsnoGp9VZ9g0Ao1BU7+bmQtlT78B4n5DWw=='; 
+dbr.BarcodeReader.productKeys = CONFIG.get('dynamsoft.productKeys'); 
 let settings = reader.getRuntimeSettings();
 settings.localizationModes = [2,0,0,0,0,0,0,0];
 settings.deblurLevel = 9;
