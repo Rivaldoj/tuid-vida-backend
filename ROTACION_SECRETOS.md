@@ -38,7 +38,7 @@ Hay que rotar todo lo que alguna vez estuvo escrito en código, en un chat o en 
 | Media | Clave de HubSpot, FTP | En cada servicio | `hubspot.key`, `ftp.password` |
 | Media | Licencia Dynamsoft | Con el proveedor | `dynamsoft.productKeys` |
 | Media | Credenciales de SISA | Con el organismo | `sisa.url` |
-| **Con migración** | Clave AES (`security.aesKey`) | Ver sección 4: **no cambiarla sin migrar datos** | — |
+| Media | Clave AES (`security.aesKey`) | Se inventa una nueva de 32 caracteres (sección 4) | Solo invalida registros en curso; sin migración |
 
 Mientras no se rote, esos valores **siguen estando en el historial de git** de este repositorio. El repositorio es local; no se debe subir con ese historial a ningún sitio. Si algún día se publica, hay que crear uno nuevo desde cero (sin historial) o reescribir el historial.
 
@@ -58,13 +58,13 @@ Para forzar que todos cambien su clave después de la migración, basta poner `f
 
 ## 4. Clave AES (`security.aesKey`)
 
-Se usa para cifrar `id_respuesta` del servicio `authenticator`. **Si se cambia sin re-cifrar, lo ya guardado deja de poder leerse.** Pasos si se quiere rotar:
+Se usa solo para cifrar `id_respuesta` dentro del `authToken` que el servicio `authenticator` devuelve en el registro (`register.js`, `v2/register.js`) y que `chance.js` descifra en la "revancha". Se verificó en el código que **ese valor cifrado no se guarda en la base**: en la tabla `usuarios` se guarda la respuesta en claro y el cifrado viaja solo dentro del token. Por eso **no hace falta ningún script de migración**.
 
-1. Hacer un respaldo de la base.
-2. Leer cada valor cifrado con la clave actual, cifrarlo con la nueva y guardarlo (hay que escribir un script de migración; no existe todavía).
-3. Poner la clave nueva en la configuración y reiniciar.
+Para rotarla:
 
-Si el servicio `authenticator` ya no se usa, se puede dejar la clave actual en la configuración (ya no está en el código) y rotarla cuando se migre.
+1. Generar una clave nueva de exactamente 32 caracteres aleatorios.
+2. Ponerla en `security.aesKey` y reiniciar.
+3. Efecto: los `authToken` emitidos antes y todavía en uso quedan sin poder descifrar la respuesta (solo afecta a quien esté justo en el paso "revancha"; esa persona repite el registro). No se pierde ningún dato.
 
 ## 5. Lista de control para el despliegue
 
