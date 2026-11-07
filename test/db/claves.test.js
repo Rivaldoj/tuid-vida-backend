@@ -103,6 +103,24 @@ const esperar = (ms) => new Promise((r) => setTimeout(r, ms));
     assert.strictEqual(r.error, 1, 'un codigo inexistente se rechaza sin romper el servidor');
     console.log('ok  reseteo: reglas de clave, historial, codigo de un solo uso y codigo inexistente');
 
+    // --- bloqueo por intentos fallidos y cuenta deshabilitada
+    await q("INSERT INTO cliente (email, password, empresa, rol, activo, fecha_ultima) VALUES ('bloqueo@tuid.test', ?, 'TUID', 'A', 1, NOW())", [P.paraGuardar('Buena-Clave-1')]);
+    for (let i = 0; i < 3; i++) assert.strictEqual((await llamar(user.login, { email: 'bloqueo@tuid.test', password: 'mala' + i })).error, 1);
+    r = await llamar(user.login, { email: 'bloqueo@tuid.test', password: 'Buena-Clave-1' });
+    assert.strictEqual(r.error, 1, 'tras 3 fallos queda bloqueada aunque la clave sea correcta');
+    assert.ok(/intentos/.test(r.data), r.data);
+    await q("UPDATE cliente SET retry = 0 WHERE email = 'bloqueo@tuid.test'");
+    assert.strictEqual((await llamar(user.login, { email: 'bloqueo@tuid.test', password: 'mala' })).error, 1);
+    assert.strictEqual((await llamar(user.login, { email: 'bloqueo@tuid.test', password: 'Buena-Clave-1' })).error, 0, 'un ingreso correcto antes del limite pone el contador en 0');
+    await esperar(200);
+    [c] = await q("SELECT retry FROM cliente WHERE email = 'bloqueo@tuid.test'");
+    assert.strictEqual(c.retry, 0);
+    await q("UPDATE cliente SET activo = 0 WHERE email = 'bloqueo@tuid.test'");
+    r = await llamar(user.login, { email: 'bloqueo@tuid.test', password: 'Buena-Clave-1' });
+    assert.strictEqual(r.error, 1, 'cuenta deshabilitada no entra');
+    assert.ok(/deshabilitada/.test(r.data), r.data);
+    console.log('ok  login: bloqueo tras 3 fallos, contador a 0 al entrar y cuenta deshabilitada rechazada');
+
     console.log('\nTodas las pruebas de claves pasaron.');
     pool.end();
     process.exit(0);

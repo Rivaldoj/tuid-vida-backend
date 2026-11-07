@@ -155,7 +155,7 @@ module.exports.crear = function (deps) {
         try {
             const activo = req.body && req.body.activo;
             if (typeof activo !== 'boolean') return responder(res, 1, 'Se debe enviar "activo": true o false');
-            const r = await db.sync_query('UPDATE cliente SET activo = ? WHERE id_usuario = ? AND empresa = ?',
+            const r = await db.sync_query('UPDATE cliente SET activo = ?, retry = 0 WHERE id_usuario = ? AND empresa = ?',
                 [activo ? 1 : 0, parseInt(req.params.idUsuario, 10) || 0, util.normalizarId(req.params.id)]);
             if (!r.affectedRows) return responder(res, 1, 'No se encontró la cuenta');
             return responder(res, 0, activo ? 'Cuenta habilitada' : 'Cuenta deshabilitada');

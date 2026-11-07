@@ -31,7 +31,13 @@ module.exports.login = async function(req, res) {
             
         if (err) { return res.status(201).json(appData) }
         if (rows.length > 0) {
-            var retry = rows[0].reintento + 1;
+            if (rows[0].activo !== null && rows[0].activo !== undefined && Number(rows[0].activo) === 0) {
+                // cuenta deshabilitada (o empresa suspendida): no entra aunque la clave sea correcta
+                appData.data = "La cuenta esta deshabilitada, comuniquese con un administrador";
+                return res.status(201).json(appData);
+            }
+            // contador de intentos fallidos: una sola columna (`retry`); antes se leia `reintento` y se escribia `retry`, por lo que nunca bloqueaba
+            var retry = (Number(rows[0].retry) || 0) + 1;
             var id_usuario = rows[0].id_usuario;
             var cambio_pass = rows[0].dias;
             var verif = passwords.verificar(passwordPlano, rows[0].password);
@@ -201,7 +207,7 @@ module.exports.reset = async function(req, res){
                                 appData.data = "Esa contraseña ya fue utilizada";
                                 res.status(201).json(appData);
                             } else {
-                                VIDA_DB.query('UPDATE cliente SET resetPasswordToken = null,resetPasswordExpires=null, password=?, reintento = 0 where id_usuario=?', [newpassword, id_usuario], function (err) {
+                                VIDA_DB.query('UPDATE cliente SET resetPasswordToken = null,resetPasswordExpires=null, password=?, retry = 0 where id_usuario=?', [newpassword, id_usuario], function (err) {
                                     VIDA_DB.query('INSERT INTO password (id_usuario,fecha,password) VALUES(?,NOW(),?);', [id_usuario, newpassword], function (err) {
                                         if (err) {
                                             appData.error = 1;
