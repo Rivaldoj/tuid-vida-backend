@@ -14,12 +14,9 @@ module.exports = async (req, res, next) => {
             console.log(err);
             return res.status(200).json(res.response);
         }
-        console.log(data);
         if (data.estado == 'Revancha'){
             let respuestaRecibida = req.body.answers[0].idChoice;
             let respuestaCorrecta = tokenizer.decrypt(data.id_respuesta);
-            console.log(respuestaRecibida);
-            console.log(respuestaCorrecta);
             if (respuestaRecibida == respuestaCorrecta) {
                 const settings = req.client.settings;
                 if (!settings.mailValidationMandatory && !settings.phoneValidationMandatory && !settings.addressValidationMandatory){
