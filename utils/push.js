@@ -63,7 +63,8 @@ module.exports.sendAsync = async (to, title, text, data) => {
         if (!to) return { ok: false, motivo: 'sin token de dispositivo' };
         const c = cargarCuenta();
         const message = { token: to, notification: { title, body: text } };
-        if (data) message.data = datosComoTexto(data);
+        // titulo y mensaje tambien como datos: la app los guarda en "Mis avisos" aunque la notificacion la muestre el sistema
+        message.data = Object.assign({ titulo: String(title || ''), mensaje: String(text || '') }, datosComoTexto(data));
         const r = await post({
             method: 'POST', uri: 'https://fcm.googleapis.com/v1/projects/' + c.project_id + '/messages:send', json: true,
             headers: { Authorization: 'Bearer ' + (await accessToken()) }, body: { message }
