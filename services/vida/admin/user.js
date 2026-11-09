@@ -36,8 +36,8 @@ module.exports.login = async function(req, res) {
                 appData.data = "La cuenta esta deshabilitada, comuniquese con un administrador";
                 return res.status(201).json(appData);
             }
-            // contador de intentos fallidos: una sola columna (`retry`); antes se leia `reintento` y se escribia `retry`, por lo que nunca bloqueaba
-            var retry = (Number(rows[0].retry) || 0) + 1;
+            // contador de intentos fallidos: una sola columna, `reintento` (la que existe en produccion); antes se leia `reintento` pero se escribia `retry`, columna que no existe, por lo que nunca bloqueaba
+            var retry = (Number(rows[0].reintento) || 0) + 1;
             var id_usuario = rows[0].id_usuario;
             var cambio_pass = rows[0].dias;
             var verif = passwords.verificar(passwordPlano, rows[0].password);
@@ -46,7 +46,7 @@ module.exports.login = async function(req, res) {
                 VIDA_DB.query('UPDATE cliente SET password = ? WHERE id_usuario = ?', [passwords.paraGuardar(passwordPlano), id_usuario], function (e) { if (e) console.log('[claves] no se pudo actualizar el formato:', e.message); });
             }
             if (verif.ok && retry < 4) {
-                VIDA_DB.query('UPDATE cliente SET retry=0 where email=?', [email], function (err) {
+                VIDA_DB.query('UPDATE cliente SET reintento=0 where email=?', [email], function (err) {
                     var permissions = getUserPermissions(rows[0]);
                     rows[0].newPermissions = permissions;
                     let token = tokenizer.tokenizeVidaAdmin(rows[0]);
@@ -103,7 +103,7 @@ module.exports.login = async function(req, res) {
                 });
                 VIDA_DB.query('INSERT INTO logueo (id_usuario,fecha) VALUES(?,NOW());', [id_usuario], function (err) {});
             } else {
-                VIDA_DB.query('UPDATE cliente SET retry=? where email=?', [retry ,email], function (err) {                                
+                VIDA_DB.query('UPDATE cliente SET reintento=? where email=?', [retry ,email], function (err) {                                
                     if (retry > 3) {
                     appData["data"] = "Cantidad de intentos superada, comuniquese con un administrador";
                     }else{
@@ -207,7 +207,7 @@ module.exports.reset = async function(req, res){
                                 appData.data = "Esa contraseña ya fue utilizada";
                                 res.status(201).json(appData);
                             } else {
-                                VIDA_DB.query('UPDATE cliente SET resetPasswordToken = null,resetPasswordExpires=null, password=?, retry = 0 where id_usuario=?', [newpassword, id_usuario], function (err) {
+                                VIDA_DB.query('UPDATE cliente SET resetPasswordToken = null,resetPasswordExpires=null, password=?, reintento = 0 where id_usuario=?', [newpassword, id_usuario], function (err) {
                                     VIDA_DB.query('INSERT INTO password (id_usuario,fecha,password) VALUES(?,NOW(),?);', [id_usuario, newpassword], function (err) {
                                         if (err) {
                                             appData.error = 1;

@@ -34,7 +34,7 @@ const account = require('../services/vida/v2/services/account');
 const v1login = require('../services/vida/login');
 
 const app = express();
-app.use(express.json());
+app.use(express.json({ limit: '50mb' }));   // el registro envia las fotos del DNI y la selfie en base64
 app.use((req, res, next) => { console.log(new Date().toISOString().slice(11, 19), req.method, req.originalUrl, JSON.stringify(req.body || {}).slice(0, 200)); next(); });
 
 const v2 = express.Router();
