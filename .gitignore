@@ -7,3 +7,5 @@ uploads/
 *.log
 config/development.json
 config/olddb.txt
+
+test/db/usuarios-locales.json
