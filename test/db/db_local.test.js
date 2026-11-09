@@ -64,6 +64,12 @@ const rows = (sql, p) => VIDA_DB.sync_query(sql, p);
     r = await call(login.searchdni, { cuil: dora.cuil });
     assert.ok(/desaprobada/.test(r.message), r.message);
     r = await call(login.searchdni, { cuil: desconocido });
+    // sin entidad adherida (no figura en usuario_empresa) no se ofrece registrarse
+    assert.strictEqual(r.registration, 'NOT_ADHERED', r.message);
+    assert.ok(/entidad adherida/.test(r.message), r.message);
+    // con entidad adherida (figura en usuario_empresa pero todavia no se registro): se ofrece registrarse
+    await VIDA_DB.sync_query("INSERT INTO usuario_empresa (cuil, empresa) VALUES (?, 'TESTBANCO')", [desconocido]);
+    r = await call(login.searchdni, { cuil: desconocido });
     assert.ok(/Previamente debe registrarse/.test(r.message), r.message);
     assert.strictEqual(r.registration, 'NOT_REGISTERED', 'la app necesita este codigo para ofrecer Registrarse');
     r = await call(login.searchdni, { cuil: desconocido.slice(0, 10) + ((Number(desconocido[10]) + 1) % 10) });
@@ -86,7 +92,9 @@ const rows = (sql, p) => VIDA_DB.sync_query(sql, p);
     const pend = await call(account.checkRegistration, { cuil: ana.cuil });
     assert.ok(pend.proximas === undefined, 'solo se informa la proxima fecha a quien esta al dia');
     assert.strictEqual(await estado(dora.cuil), 'REGISTRATION_INCOMPLETE');
-    assert.strictEqual(await estado(desconocido), 'NOT_REGISTERED');
+    assert.strictEqual(await estado(desconocido), 'NOT_REGISTERED');   // figura en usuario_empresa (se agrego arriba)
+    await VIDA_DB.sync_query('DELETE FROM usuario_empresa WHERE cuil = ?', [desconocido]);
+    assert.strictEqual(await estado(desconocido), 'NOT_ADHERED');
     r = await call(account.checkRegistration, { cuil: ana.cuil });
     assert.strictEqual(r.pendingFeDeVida, true);
     assert.ok(!/PRUEBA|ANA|1950/.test(JSON.stringify(r)), 'sin datos personales');

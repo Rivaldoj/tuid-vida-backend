@@ -71,6 +71,9 @@ v2.post('/login', async (req, res) => {
 });
 app.use('/vida/v2', v2);
 
+// v1: la app valida el documento escaneado antes de seguir con el registro. En la prueba local siempre se puede continuar.
+app.post('/checkDocument', (req, res) => res.json({ res: 200, code: '10011', message: '', proceed: true }));
+
 // v1 que usa la app para "Cuando cobro" y "Solicitar certificado"
 app.get('/certificate', v1login.getCertificate);
 app.get('/payments', (req, res) => res.json({

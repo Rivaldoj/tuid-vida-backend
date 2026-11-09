@@ -135,6 +135,21 @@ module.exports.searchdni = async (req, res, next) => {
     }
 
     if (rows.length === 0) {
+        // Antes de ofrecer "Registrarse": el CUIL tiene que figurar en usuario_empresa (entidad adherida)
+        const cuilBuscado = req.body.cuil;
+        if (cuilBuscado) {
+            let entidades;
+            try {
+                entidades = await VIDA_DB.sync_query('SELECT empresa FROM usuario_empresa WHERE cuil = ? LIMIT 1', [cuilBuscado]);
+            } catch (err) {
+                console.log(err);
+                return sendError(res, 'Error de conexión con la base de datos', err);
+            }
+            if (entidades.length === 0) {
+                res.response.registration = 'NOT_ADHERED';
+                return sendError(res, 'Su CUIL no figura en ninguna entidad adherida a TuID Vida.\nEsto puede deberse a que su beneficio previsional es muy reciente o a que su institución todavía no está adherida. Si encuentra útil nuestro servicio, solicite a su entidad la adhesión. Cualquier inquietud contáctenos.');
+            }
+        }
         res.response.registration = 'NOT_REGISTERED';   // la app lo usa para ofrecer "Registrarse"
         return sendError(res, 'No hemos podido autenticar su identidad.\nPreviamente debe registrarse.\nSi ya lo ha hecho comuníquese mediante el formulario de contacto');
     }

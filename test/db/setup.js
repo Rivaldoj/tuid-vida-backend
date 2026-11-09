@@ -32,6 +32,8 @@ if (require.main === module) {
             ids[k] = r.insertId;
             await q("INSERT INTO usuario_empresa (cuil, empresa, fecha_recordatorio, notificacion, proxima) VALUES (?, 'TESTBANCO', NULL, NULL, DATE_ADD(CURDATE(), INTERVAL 60 DAY))", [p.cuil]);
         }
+        // Elena: figura en usuario_empresa (entidad adherida) pero todavia NO esta registrada: puede registrarse
+        await q("INSERT INTO usuario_empresa (cuil, empresa, fecha_recordatorio, notificacion, proxima) VALUES (?, 'TESTBANCO', NULL, NULL, NULL)", [mk('27', '44444445')]);
         // Ana: 25 certificaciones, la ultima hace 8 meses (-> Fe de Vida PENDIENTE). Cada una con su session_id.
         for (let i = 0; i < 25; i++) {
             await q("INSERT INTO auditoria (id_usuario, fecha, similitud, empresa, latitud, longitud, direccion, cuil, session_id, id_device) VALUES (?, DATE_SUB(NOW(), INTERVAL ? DAY), 95, 'TESTBANCO', '-34.6', '-58.4', ?, ?, ?, 'DEVICE-ANA')",
@@ -41,7 +43,7 @@ if (require.main === module) {
         for (const k of ['beto', 'carlos']) {
             await q("INSERT INTO auditoria (id_usuario, fecha, similitud, empresa, cuil, session_id) VALUES (?, DATE_SUB(NOW(), INTERVAL 10 DAY), 95, 'TESTBANCO', ?, ?)", [ids[k], PERSONAS[k].cuil, 'sess-' + k]);
         }
-        console.log('Datos de prueba creados. CUIL:', Object.fromEntries(Object.entries(PERSONAS).map(([k, p]) => [k, p.cuil])));
+        console.log('Datos de prueba creados. CUIL:', Object.fromEntries(Object.entries(PERSONAS).map(([k, p]) => [k, p.cuil])), '| elena (adherida, sin registrar):', mk('27', '44444445'));
         db.end();
     })().catch((e) => { console.error(e); process.exit(1); });
 }

@@ -31,10 +31,13 @@ function sameSecret(a, b) {
 // Estados que informa checkRegistration. Nunca se devuelven nombres, fechas ni datos de contacto.
 const REGISTRATION = {
     NOT_REGISTERED: 'NOT_REGISTERED',
+    NOT_ADHERED: 'NOT_ADHERED',          // no esta registrada y su CUIL no figura en usuario_empresa (entidad no adherida)
     INCOMPLETE: 'REGISTRATION_INCOMPLETE',
     PENDING: 'REGISTERED_PENDING',
     UP_TO_DATE: 'REGISTERED_UP_TO_DATE'
 };
+
+const NO_ADHERIDA = 'Su CUIL no figura en ninguna entidad adherida a TuID Vida.\nEsto puede deberse a que su beneficio previsional es muy reciente o a que su institución todavía no está adherida. Si encuentra útil nuestro servicio, solicite a su entidad la adhesión. Cualquier inquietud contáctenos.';
 
 function registrationStatus(rows) {
     if (rows.length === 0) return REGISTRATION.NOT_REGISTERED;
@@ -80,11 +83,21 @@ async function checkRegistration(req, res) {
     }
     try {
         const rows = await VIDA_DB.sync_query(login.queries.searchQuery(login.queries.FILTER_BY_CUIL), [cuil, cuil]);
-        const registration = registrationStatus(rows);
+        let registration = registrationStatus(rows);
+        let message = 'ok';
+        // Para registrarse, el CUIL tiene que figurar en usuario_empresa: es lo que prueba que la persona pertenece
+        // a una entidad adherida a TuID Vida. Si no figura, no se puede registrar.
+        if (registration === REGISTRATION.NOT_REGISTERED) {
+            const entidades = await VIDA_DB.sync_query('SELECT empresa FROM usuario_empresa WHERE cuil = ? LIMIT 1', [cuil]);
+            if (entidades.length === 0) {
+                registration = REGISTRATION.NOT_ADHERED;
+                message = NO_ADHERIDA;
+            }
+        }
         const payload = {
             res: 'ok',
-            message: 'ok',
-            registered: registration !== REGISTRATION.NOT_REGISTERED,
+            message,
+            registered: registration !== REGISTRATION.NOT_REGISTERED && registration !== REGISTRATION.NOT_ADHERED,
             registration,
             pendingFeDeVida: registration === REGISTRATION.PENDING
         };

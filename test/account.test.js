@@ -49,10 +49,18 @@ function call(handler, body, ip = '1.1.1.1') {
     assert.strictEqual(r.res, 'error');
     assert.strictEqual(queries.length, 1, 'un CUIL invalido no consulta la base');
 
-    dbAnswers = [[]];
+    // no registrado pero con entidad adherida (figura en usuario_empresa): puede registrarse
+    dbAnswers = [[], [{ empresa: 'TESTBANCO' }]];
     r = await call(account.checkRegistration, { cuil: CUIL });
     assert.strictEqual(r.registered, false);
+    assert.strictEqual(r.registration, 'NOT_REGISTERED');
     assert.strictEqual(r.pendingFeDeVida, false);
+    // no registrado y sin entidad adherida (no figura en usuario_empresa): no puede registrarse
+    dbAnswers = [[], []];
+    r = await call(account.checkRegistration, { cuil: CUIL });
+    assert.strictEqual(r.registered, false);
+    assert.strictEqual(r.registration, 'NOT_ADHERED');
+    assert.ok(/entidad adherida/.test(r.message), r.message);
 
     // --- limite de intentos
     const lim = createLimiter({ max: 2, windowMs: 1000, now: (() => { let t = 0; return () => t; })() });
