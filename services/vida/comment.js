@@ -2,6 +2,7 @@ const mailing = require('../../utils/mail');
 const slack = require('../../utils/slack');
 const hs = require('../../utils/hubspot');
 const resources = require('./../../startup/resources');
+const contactoTexto = require('./contactoTexto');
 const { randomUUID } = require('crypto');
 
 const config = CONFIG.get('vida');
@@ -20,7 +21,7 @@ const issues = {
     },
     "103": { 
         multiple: false,
-        title: "Problemas con el Registro"
+        title: "Tengo dificultades con el Escaneo"
     }, 
     "104": {
         multiple: true,
@@ -250,7 +251,10 @@ module.exports.comment = async (req, res, next) =>{
             }
             if (autoresponse == 1){
                 slack.debug(`Contacto a soporte ${req.body.cuil}: ${req.body.asunto} autoresponse: ${templateName} Ticket: ${provider}${ticketId}`);
-                mailing.send(templateName,req.body,req.body.email, config.supportContact, null);
+                // Si el texto de esta respuesta esta cargado en el panel (Textos, clave CONTACTO_<codigo>) se envia ese; si no, el archivo de siempre.
+                contactoTexto.enviar(templateName, req.body, config.supportContact).then((enviado) => {
+                    if (!enviado) mailing.send(templateName,req.body,req.body.email, config.supportContact, null);
+                });
             }else{
                 slack.debug(`Contacto a soporte ${req.body.cuil}: ${req.body.asunto} Ticket: ${provider}${ticketId}`);
             }

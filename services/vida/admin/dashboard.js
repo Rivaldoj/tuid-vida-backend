@@ -150,3 +150,42 @@ module.exports.reportRegistrations = async (req, res,next) => {
     next();
 
 }
+
+// GET /auth/reports/dashboard/informe?ano=2026&mes=11&empresa=<ID>
+// Informe mensual por empresa para el PDF del Dashboard: las registraciones del mes (tabla usuario) y las certificaciones del mes (tabla auditoria,
+// las mismas que cuentan los graficos: similitud > 1, una por persona: la ultima del mes). Una empresa comun solo ve la suya;
+// el Administrador de TUID elige una empresa o "TUID" para ver todas (una seccion por empresa).
+module.exports.informeMensual = async (req, res) => {
+    const responder = (error, data) => res.status(200).json({ error, data });
+    const ano = parseInt(req.query.ano, 10);
+    const mes = parseInt(req.query.mes, 10);
+    if (!(ano >= 2000 && ano <= 2100) || !(mes >= 1 && mes <= 12)) return responder(1, 'Mes o año inválido');
+    let empresa = req.user.empresa;
+    if (req.user.empresa == 'TUID' && req.query.empresa) empresa = String(req.query.empresa);
+    const todas = empresa === 'TUID';
+    try {
+        const filtroU = todas ? '' : ' AND u.empresa = ?';
+        const filtroA = todas ? '' : ' AND empresa = ?';
+        const parU = todas ? [ano, mes] : [ano, mes, empresa];
+        const regs = await VIDA_DB.sync_query(
+            `SELECT u.empresa, u.cuil, TRIM(CONCAT(IFNULL(u.nombre, ''), ' ', IFNULL(u.apellido, ''))) AS nombre, u.fecha, u.similitud
+             FROM usuario u WHERE year(u.fecha) = ? AND month(u.fecha) = ?${filtroU} ORDER BY u.empresa, u.fecha`, parU);
+        const certs = await VIDA_DB.sync_query(
+            `SELECT a.empresa, u.cuil, TRIM(CONCAT(IFNULL(u.nombre, ''), ' ', IFNULL(u.apellido, ''))) AS nombre, a.fecha, a.similitud
+             FROM auditoria a
+             JOIN (SELECT MAX(id_validacion) AS idv FROM auditoria WHERE similitud > 1 AND year(fecha) = ? AND month(fecha) = ?${filtroA} GROUP BY id_usuario, empresa) l ON l.idv = a.id_validacion
+             JOIN usuario u ON u.id_usuario = a.id_usuario ORDER BY a.empresa, a.fecha`, parU);
+        const porEmpresa = {};
+        const nombreEmpresa = (e) => e || 'Sin empresa';
+        const seccion = (e) => porEmpresa[nombreEmpresa(e)] || (porEmpresa[nombreEmpresa(e)] = { empresa: nombreEmpresa(e), registraciones: [], certificaciones: [] });
+        const fila = (r) => ({ cuil: r.cuil == null ? '' : String(r.cuil), nombre: r.nombre || '', fecha: r.fecha == null ? '' : String(r.fecha), similitud: r.similitud == null ? null : Number(r.similitud) });
+        regs.forEach((r) => seccion(r.empresa).registraciones.push(fila(r)));
+        certs.forEach((r) => seccion(r.empresa).certificaciones.push(fila(r)));
+        if (!todas) seccion(empresa); // la empresa pedida aparece aunque no tenga movimientos
+        const empresas = Object.keys(porEmpresa).sort().map((k) => porEmpresa[k]);
+        return responder(0, { ano, mes, empresa: todas ? 'TUID' : empresa, todas, empresas });
+    } catch (err) {
+        console.log(err);
+        return responder(1, 'No se pudo armar el informe');
+    }
+};

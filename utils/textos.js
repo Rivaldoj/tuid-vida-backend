@@ -1,6 +1,8 @@
 // Utilidades del Modulo de Textos: reemplazo de variables y enlaces de WhatsApp / correo. Funciones puras (sin base de datos).
 
-const VARIABLES = ['nombre', 'apellido', 'nombre_completo', 'cuil', 'empresa', 'fecha', 'auditor', 'enlace_foto'];
+const htmlCorreo = require('./htmlCorreo');
+
+const VARIABLES = ['nombre', 'apellido', 'nombre_completo', 'cuil', 'empresa', 'fecha', 'auditor', 'enlace_foto', 'correo_cliente', 'telefono_cliente'];
 
 // Datos de ejemplo para la vista previa en el panel
 const EJEMPLO = {
@@ -11,7 +13,9 @@ const EJEMPLO = {
     empresa: 'BANCO DE EJEMPLO',
     fecha: '06/11/2026',
     auditor: 'auditor@tuid.test',
-    enlace_foto: 'https://api.autenticartuid.com/vida/f/EjemploDeEnlace1234567'
+    enlace_foto: 'https://api.autenticartuid.com/vida/f/EjemploDeEnlace1234567',
+    correo_cliente: 'soporte@entidad.test',
+    telefono_cliente: '0800-000-0000'
 };
 
 // Reemplaza {{variable}} por su valor. Es un reemplazo de texto: no se ejecuta nada de lo que haya en la plantilla.
@@ -28,6 +32,15 @@ function render(plantilla, datos) {
         return valor == null ? '' : String(valor);
     });
     return { texto, desconocidas };
+}
+
+// Igual que render, pero para HTML: el valor de cada variable se escapa (nada de lo que venga de la base o de la persona se interpreta como HTML)
+// y el resultado se sanea (solo etiquetas y atributos permitidos). Devuelve solo el contenido, sin <html> ni <body>.
+function renderHtml(plantilla, datos) {
+    const seguros = {};
+    Object.keys(datos || {}).forEach((k) => { seguros[k] = escaparHtml(datos[k] == null ? '' : datos[k]); });
+    const r = render(plantilla, seguros);
+    return { html: htmlCorreo.sanear(r.texto), desconocidas: r.desconocidas };
 }
 
 // Numero para wa.me: solo digitos, con codigo de pais. Supuesto para Argentina: sin 54 se agrega 54 y el 9 de los celulares.
@@ -89,4 +102,4 @@ function aParrafosHtml(texto) {
     return conEnlaces.split(/\n{2,}/).map((p) => '<p style="margin:0 0 14px 0">' + p.replace(/\n/g, '<br>') + '</p>').join('');
 }
 
-module.exports = { escaparHtml, aParrafosHtml, VARIABLES, EJEMPLO, render, telefonoWhatsApp, urlWhatsApp, urlMailto, emailValido, formatoFecha, formatoCuil, capitalizar };
+module.exports = { renderHtml, escaparHtml, aParrafosHtml, VARIABLES, EJEMPLO, render, telefonoWhatsApp, urlWhatsApp, urlMailto, emailValido, formatoFecha, formatoCuil, capitalizar };

@@ -373,3 +373,52 @@ module.exports.test = async (req,res,next)=>{
     });
 }
 //
+
+
+// GET /auth/auditoria/informe-observados?from=AAAA-MM-DD&to=AAAA-MM-DD&empresa=<ID>
+// Casos observados (rechazados por Auditoria: 'ALERTA:<auditor>') para el informe en PDF: registraciones (tabla usuario) y validaciones
+// (tabla auditoria, certificaciones con similitud > 1), con las mismas condiciones que la lista de Rechazadas, sin el limite de 100.
+// Una empresa comun solo ve la suya; el Administrador de TUID elige una o "todas" (sin `empresa`).
+const MAX_CASOS_INFORME = 20000;
+module.exports.informeObservados = async (req, res) => {
+    const responder = (error, data) => res.status(200).json({ error, data });
+    const fecha = /^\d{4}-\d{2}-\d{2}$/;
+    const desde = String(req.query.from || '');
+    const hasta = String(req.query.to || '');
+    if (!fecha.test(desde) || !fecha.test(hasta)) return responder(1, 'Indique el rango de fechas (Desde / Hasta)');
+    if (desde > hasta) return responder(1, 'La fecha Desde no puede ser posterior a la fecha Hasta');
+    let empresa = '';
+    if (req.user.empresa != 'TUID') empresa = req.user.empresa;
+    else if (req.query.empresa) empresa = String(req.query.empresa);
+    try {
+        const fEmpU = empresa ? ' AND u.empresa = ?' : '';
+        const fEmpA = empresa ? ' AND a.empresa = ?' : '';
+        const parU = [desde, hasta].concat(empresa ? [empresa] : []);
+        const regs = await VIDA_DB.sync_query(
+            `SELECT u.empresa, u.cuil, u.fecha FROM usuario u
+             WHERE u.auditor LIKE 'ALERTA%' AND date(u.fecha) >= ? AND date(u.fecha) <= ?${fEmpU} ORDER BY u.empresa, u.fecha LIMIT ${MAX_CASOS_INFORME + 1}`, parU);
+        const vals = await VIDA_DB.sync_query(
+            `SELECT a.empresa, u.cuil, a.fecha FROM auditoria a JOIN usuario u ON u.id_usuario = a.id_usuario
+             WHERE a.similitud > 1 AND a.auditor LIKE 'ALERTA%' AND u.auditor IS NOT NULL AND u.auditor NOT LIKE 'ALERTA%'
+               AND date(a.fecha) >= ? AND date(a.fecha) <= ?${fEmpA} ORDER BY a.empresa, a.fecha LIMIT ${MAX_CASOS_INFORME + 1}`, parU);
+        const truncado = regs.length > MAX_CASOS_INFORME || vals.length > MAX_CASOS_INFORME;
+        const porEmpresa = {};
+        const seccion = (e) => { const n = e || 'Sin empresa'; return porEmpresa[n] || (porEmpresa[n] = { empresa: n, registraciones: 0, validaciones: 0, casos: [] }); };
+        const pad = (n) => String(n).padStart(2, '0');
+        // en produccion `fecha` es texto ('AAAA-MM-DD HH:MM:SS'); si la base la entrega como fecha se la pasa al mismo formato
+        const textoFecha = (f) => (f instanceof Date ? `${f.getFullYear()}-${pad(f.getMonth() + 1)}-${pad(f.getDate())} ${pad(f.getHours())}:${pad(f.getMinutes())}:${pad(f.getSeconds())}` : (f == null ? '' : String(f)));
+        const caso = (tipo, r) => ({ tipo, cuil: r.cuil == null ? '' : String(r.cuil), fecha: textoFecha(r.fecha) });
+        regs.slice(0, MAX_CASOS_INFORME).forEach((r) => { const s = seccion(r.empresa); s.registraciones++; s.casos.push(caso('registracion', r)); });
+        vals.slice(0, MAX_CASOS_INFORME).forEach((r) => { const s = seccion(r.empresa); s.validaciones++; s.casos.push(caso('validacion', r)); });
+        if (empresa) seccion(empresa); // la empresa pedida aparece aunque no tenga casos
+        const empresas = Object.keys(porEmpresa).sort().map((k) => {
+            const s = porEmpresa[k];
+            s.casos.sort((x, y) => (x.fecha < y.fecha ? -1 : x.fecha > y.fecha ? 1 : 0));
+            return s;
+        });
+        return responder(0, { desde, hasta, empresa: empresa || 'Todas', todas: !empresa, truncado, empresas });
+    } catch (err) {
+        console.log(err);
+        return responder(1, 'No se pudo armar el informe');
+    }
+};

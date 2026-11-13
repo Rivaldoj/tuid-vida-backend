@@ -112,10 +112,12 @@ router.get('/auth/tickets/categories', adminMiddleware,hasPermission("SOPORTE"),
 router.get('/auth/reports/pending', adminMiddleware,hasPermission("REPORTSSUP"), services.registrations.pendingReport, services.registrations.sendReport);
 router.get('/auth/reports/tickets/monthly', adminMiddleware,hasPermission("REPORTSSUP"), services.tickets.monthly, services.registrations.sendReport);
 router.get('/auth/reports/tickets/daily', adminMiddleware,hasPermission("REPORTSSUP"), services.tickets.daily, services.registrations.sendReport);
+router.get('/auth/reports/dashboard/informe', adminMiddleware,hasPermission("DASHBOARD"), services.dashboard.informeMensual);
 router.get('/auth/reports/dashboard/registrations', adminMiddleware,hasPermission("DASHBOARD"), services.dashboard.reportRegistrations, services.registrations.sendReport);
 router.get('/auth/reports/dashboard/validations', adminMiddleware,hasPermission("DASHBOARD"), services.dashboard.reportValidations, services.registrations.sendReport);
 
 //AUDITORIA
+router.get('/auth/auditoria/informe-observados', adminMiddleware,hasPermission("AUDITORIA"), services.auditoria.informeObservados);
 router.get('/auth/auditoria/validaciones', adminMiddleware,hasPermission("AUDITORIA"), services.auditoria.list);
 router.get('/auth/auditoria/filtros', adminMiddleware,hasPermission("AUDITORIA"), services.auditoria.filtros);
 router.get('/auth/auditoria/validaciones/:id_validacion/ok', adminMiddleware,hasPermission("AUDITORIA"), services.auditoria.validacionOk);

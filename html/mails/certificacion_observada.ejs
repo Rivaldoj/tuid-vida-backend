@@ -28,6 +28,11 @@
         <p style="margin:8px 0 0 0;font-size:14px;color:#777;">Si no reconoce esta foto, escríbanos de inmediato por WhatsApp.</p>
       </td></tr>
 <% } %>
+<% if (pieHtml) { %>
+      <tr><td align="center" style="padding:6px 14px 20px 14px;font-size:16px;line-height:1.5;">
+        <%- pieHtml %>
+      </td></tr>
+<% } else { %>
       <tr><td style="padding:6px 28px 20px 28px;font-size:16px;line-height:1.5;">
         <p style="margin:0;">Departamento de Auditoría<br><strong>Autenticar TuID SAS</strong><br><a href="https://tuid.ar" target="_blank" style="color:#006e7b;">www.tuid.ar</a></p>
       </td></tr>
@@ -37,6 +42,7 @@
         <p style="margin:6px 0 0 0;font-size:17px;"><a href="https://api.whatsapp.com/send?phone=5491123443283&amp;text=Quiero%20recibir%20soporte%20sobre%20TuID%20Vida" target="_blank" style="color:#333;text-decoration:none;">+54 (911) 2344-3283</a></p>
         <p style="margin:2px 0 0 0;font-size:14px;color:#555;">Lunes a viernes de 9 a 18 hs (solo texto)</p>
       </td></tr>
+<% } %>
     </table>
   </td></tr>
 </table>

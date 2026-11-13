@@ -1,5 +1,6 @@
 const textos = require('../../../utils/textos');
 const fotos = require('../../../utils/fotos');
+const htmlCorreo = require('../../../utils/htmlCorreo');
 
 // Direccion publica del servidor para los enlaces que se mandan a las personas (configuracion `vida.publicUrl`)
 function urlBasePublica() {
@@ -12,14 +13,17 @@ function urlBasePublica() {
 module.exports.urlBasePublica = urlBasePublica;
 
 const CANALES = ['whatsapp', 'email', 'push'];
+const FORMATOS = ['texto', 'html'];
 const MAX_CUERPO = 4000;
+const MAX_CUERPO_HTML = 50000;
 
 function responder(res, error, data) {
     res.response = { error, data };
     return res.status(200).json(res.response);
 }
 
-function validar(body, esAlta) {
+// `actual` = texto guardado (al editar): de ahi salen el canal y el formato si el pedido no los trae
+function validar(body, esAlta, actual) {
     const out = {};
     if (esAlta) {
         const clave = String(body.clave || '').trim().toUpperCase();
@@ -28,15 +32,28 @@ function validar(body, esAlta) {
         if (!CANALES.includes(body.canal)) return { error: 'El canal debe ser whatsapp, email o push.' };
         out.canal = body.canal;
     }
+    const canal = esAlta ? out.canal : (actual && actual.canal);
+    let formato = (actual && actual.formato) || 'texto';
+    if (body.formato !== undefined) {
+        if (!FORMATOS.includes(body.formato)) return { error: 'El formato debe ser texto o html.' };
+        formato = body.formato;
+        out.formato = formato;
+    }
+    if (formato === 'html' && canal !== 'email') return { error: 'El formato HTML solo se puede usar en los correos.' };
     if (body.nombre !== undefined || esAlta) {
         const nombre = String(body.nombre || '').trim();
         if (nombre.length < 3 || nombre.length > 100) return { error: 'El nombre debe tener entre 3 y 100 caracteres.' };
         out.nombre = nombre;
     }
-    if (body.cuerpo !== undefined || esAlta) {
-        const cuerpo = String(body.cuerpo || '').trim();
+    // si cambia el formato a HTML hay que volver a sanear el texto que ya estaba guardado
+    if (body.cuerpo !== undefined || esAlta || (out.formato === 'html' && actual && actual.formato !== 'html')) {
+        let cuerpo = String(body.cuerpo !== undefined ? body.cuerpo : (actual ? actual.cuerpo : '') || '').trim();
         if (cuerpo.length < 1) return { error: 'El texto no puede estar vacío.' };
-        if (cuerpo.length > MAX_CUERPO) return { error: `El texto no puede superar los ${MAX_CUERPO} caracteres.` };
+        if (formato === 'html') {
+            if (cuerpo.length > MAX_CUERPO_HTML) return { error: `El texto no puede superar los ${MAX_CUERPO_HTML} caracteres.` };
+            cuerpo = htmlCorreo.sanear(cuerpo);
+            if (!cuerpo) return { error: 'El HTML no tiene contenido permitido.' };
+        } else if (cuerpo.length > MAX_CUERPO) return { error: `El texto no puede superar los ${MAX_CUERPO} caracteres.` };
         out.cuerpo = cuerpo;
     }
     if (body.asunto !== undefined || esAlta) {
@@ -56,7 +73,7 @@ module.exports.list = async (req, res) => {
         if (req.query.canal && CANALES.includes(req.query.canal)) { where.push('canal = ?'); params.push(req.query.canal); }
         if (req.query.activos == 1) where.push('activo = 1');
         const rows = await VIDA_DB.sync_query(
-            `SELECT id, clave, canal, nombre, asunto, cuerpo, activo, actualizado_por, actualizado_en FROM textos
+            `SELECT id, clave, canal, formato, nombre, asunto, cuerpo, activo, actualizado_por, actualizado_en FROM textos
              ${where.length ? 'WHERE ' + where.join(' AND ') : ''} ORDER BY canal, nombre`, params);
         return responder(res, 0, { textos: rows, variables: textos.VARIABLES });
     } catch (err) {
@@ -65,7 +82,7 @@ module.exports.list = async (req, res) => {
     }
 };
 
-// POST /auth/textos  { clave, canal, nombre, asunto, cuerpo }
+// POST /auth/textos  { clave, canal, nombre, asunto, cuerpo, formato? }
 module.exports.create = async (req, res) => {
     const v = validar(req.body || {}, true);
     if (v.error) return responder(res, 1, v.error);
@@ -73,8 +90,8 @@ module.exports.create = async (req, res) => {
         const existe = await VIDA_DB.sync_query('SELECT id FROM textos WHERE clave = ?', [v.valores.clave]);
         if (existe.length > 0) return responder(res, 1, 'Ya existe un texto con esa clave.');
         const r = await VIDA_DB.sync_query(
-            'INSERT INTO textos (clave, canal, nombre, asunto, cuerpo, activo, actualizado_por, actualizado_en) VALUES (?, ?, ?, ?, ?, 1, ?, NOW())',
-            [v.valores.clave, v.valores.canal, v.valores.nombre, v.valores.asunto, v.valores.cuerpo, req.user && req.user.email]);
+            'INSERT INTO textos (clave, canal, formato, nombre, asunto, cuerpo, activo, actualizado_por, actualizado_en) VALUES (?, ?, ?, ?, ?, ?, 1, ?, NOW())',
+            [v.valores.clave, v.valores.canal, v.valores.formato || 'texto', v.valores.nombre, v.valores.asunto, v.valores.cuerpo, req.user && req.user.email]);
         return responder(res, 0, { id: r.insertId });
     } catch (err) {
         console.log(err);
@@ -86,17 +103,17 @@ module.exports.create = async (req, res) => {
 module.exports.update = async (req, res) => {
     const id = parseInt(req.params.id, 10);
     if (!id) return responder(res, 1, 'Texto inválido');
-    const v = validar(req.body || {}, false);
-    if (v.error) return responder(res, 1, v.error);
-    const campos = Object.keys(v.valores);
-    if (campos.length === 0) return responder(res, 1, 'No hay nada para cambiar');
     try {
         const [actual] = await VIDA_DB.sync_query('SELECT * FROM textos WHERE id = ?', [id]);
         if (!actual) return responder(res, 1, 'No se encontró el texto');
+        const v = validar(req.body || {}, false, actual);
+        if (v.error) return responder(res, 1, v.error);
+        const campos = Object.keys(v.valores);
+        if (campos.length === 0) return responder(res, 1, 'No hay nada para cambiar');
         const usuario = req.user && req.user.email;
         await VIDA_DB.sync_query(
-            'INSERT INTO textos_historial (id_texto, asunto, cuerpo, activo, usuario, fecha) VALUES (?, ?, ?, ?, ?, NOW())',
-            [id, actual.asunto, actual.cuerpo, actual.activo, usuario || null]);
+            'INSERT INTO textos_historial (id_texto, formato, asunto, cuerpo, activo, usuario, fecha) VALUES (?, ?, ?, ?, ?, ?, NOW())',
+            [id, actual.formato || 'texto', actual.asunto, actual.cuerpo, actual.activo, usuario || null]);
         const sets = campos.map((c) => `${c} = ?`).concat(['actualizado_por = ?', 'actualizado_en = NOW()']);
         await VIDA_DB.sync_query(`UPDATE textos SET ${sets.join(', ')} WHERE id = ?`, campos.map((c) => v.valores[c]).concat([usuario || null, id]));
         return responder(res, 0, 'Texto actualizado');
@@ -110,7 +127,7 @@ module.exports.update = async (req, res) => {
 module.exports.historial = async (req, res) => {
     try {
         const rows = await VIDA_DB.sync_query(
-            'SELECT id, asunto, cuerpo, activo, usuario, fecha FROM textos_historial WHERE id_texto = ? ORDER BY fecha DESC, id DESC LIMIT 50',
+            'SELECT id, formato, asunto, cuerpo, activo, usuario, fecha FROM textos_historial WHERE id_texto = ? ORDER BY fecha DESC, id DESC LIMIT 50',
             [parseInt(req.params.id, 10) || 0]);
         return responder(res, 0, rows);
     } catch (err) {
@@ -125,9 +142,9 @@ module.exports.restaurar = async (req, res) => {
     const idHist = parseInt(req.params.idHistorial, 10);
     if (!id || !idHist) return responder(res, 1, 'Datos inválidos');
     try {
-        const [version] = await VIDA_DB.sync_query('SELECT asunto, cuerpo FROM textos_historial WHERE id = ? AND id_texto = ?', [idHist, id]);
+        const [version] = await VIDA_DB.sync_query('SELECT formato, asunto, cuerpo FROM textos_historial WHERE id = ? AND id_texto = ?', [idHist, id]);
         if (!version) return responder(res, 1, 'No se encontró esa versión');
-        req.body = { asunto: version.asunto, cuerpo: version.cuerpo };
+        req.body = { formato: version.formato || 'texto', asunto: version.asunto, cuerpo: version.cuerpo };
         return module.exports.update(req, res);
     } catch (err) {
         console.log(err);
@@ -135,14 +152,17 @@ module.exports.restaurar = async (req, res) => {
     }
 };
 
-// POST /auth/textos/preview { asunto, cuerpo } -> el texto con datos de ejemplo y las variables desconocidas
+// POST /auth/textos/preview { asunto, cuerpo, formato? } -> el texto con datos de ejemplo y las variables desconocidas
+// Con formato html, `cuerpo` es el HTML ya saneado (lo mismo que se enviaria) y `documento` el correo completo para mostrarlo.
 module.exports.preview = async (req, res) => {
     const body = req.body || {};
-    const cuerpo = textos.render(body.cuerpo, textos.EJEMPLO);
+    const esHtml = body.formato === 'html';
+    const cuerpo = esHtml ? textos.renderHtml(body.cuerpo, textos.EJEMPLO) : textos.render(body.cuerpo, textos.EJEMPLO);
     const asunto = textos.render(body.asunto, textos.EJEMPLO);
     return responder(res, 0, {
         asunto: asunto.texto,
-        cuerpo: cuerpo.texto,
+        cuerpo: esHtml ? cuerpo.html : cuerpo.texto,
+        documento: esHtml ? htmlCorreo.documento(cuerpo.html, asunto.texto) : null,
         desconocidas: Array.from(new Set(cuerpo.desconocidas.concat(asunto.desconocidas)))
     });
 };
@@ -177,7 +197,7 @@ module.exports.contacto = async (req, res) => {
             const enlace = await fotos.crearEnlace(VIDA_DB, { idValidacion: id, idUsuario: vinculo.id_usuario, creadoPor: req.user && req.user.email });
             datos.enlace_foto = urlBasePublica() + '/vida/f/' + enlace.codigo;
         }
-        const cuerpo = textos.render(texto.cuerpo, datos).texto;
+        const cuerpo = texto.formato === 'html' ? htmlCorreo.aTextoPlano(textos.renderHtml(texto.cuerpo, datos).html) : textos.render(texto.cuerpo, datos).texto;
         const asunto = textos.render(texto.asunto, datos).texto;
         const data = { canal: texto.canal, asunto, texto: cuerpo, persona: datos.nombre_completo, whatsapp: null, email: null, avisos: [] };
         if (texto.canal === 'whatsapp') {

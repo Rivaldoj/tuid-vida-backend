@@ -14,7 +14,7 @@ CREATE TABLE usuario (
   estado VARCHAR(20), fecha DATETIME, fecha_fallecido DATETIME NULL,
   auditor VARCHAR(255) NULL, id_device VARCHAR(500) NULL, empresa VARCHAR(50) NULL, extra VARCHAR(1000) NULL,
   email VARCHAR(100) NULL, telefono VARCHAR(30) NULL,
-  emailVrf TINYINT NULL, telefonoVrf TINYINT NULL, fecha_valida DATETIME NULL,
+  emailVrf TINYINT NULL, telefonoVrf TINYINT NULL, fecha_valida DATETIME NULL, similitud FLOAT NULL,
   KEY (cuil), KEY (dni, sexo)
 );
 CREATE TABLE empresa (

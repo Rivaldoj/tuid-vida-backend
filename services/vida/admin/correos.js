@@ -4,15 +4,18 @@ const path = require('path');
 const ejs = require('ejs');
 const textos = require('../../../utils/textos');
 const fotos = require('../../../utils/fotos');
+const pieCorreo = require('../../../utils/pieCorreo');
 
 const PLANTILLA = path.join(__dirname, '../../../html/mails/certificacion_observada.ejs');
 const SEGUNDOS_FOTO_CORREO = fotos.DIAS_POR_DEFECTO * 24 * 3600; // la foto del correo vence junto con los enlaces (tope de S3: 7 dias)
 
 // Arma el HTML del correo. Todo lo que viene de la base se escapa; `fotoUrl` solo se acepta si es https.
-async function armarCorreo({ titulo, nombre, cuil, fecha, cuerpoTexto, fotoUrl, fotoEnlace }) {
+// `cuerpoHtml` (opcional): contenido ya saneado de un texto con formato HTML; si no viene se arma desde `cuerpoTexto` (texto plano).
+// `pieHtml` (opcional): pie compartido (PIE_CORREO); si viene reemplaza la firma y los canales de ayuda fijos de la plantilla.
+async function armarCorreo({ titulo, nombre, cuil, fecha, cuerpoTexto, cuerpoHtml, pieHtml, fotoUrl, fotoEnlace }) {
     const soloHttps = (u) => (typeof u === 'string' && /^https?:\/\/[^\s"'<>]+$/.test(u) && (/^https:\/\//.test(u) || /^http:\/\/localhost/.test(u)) ? u : '');
     return ejs.renderFile(PLANTILLA, {
-        title: titulo, nombre, cuil, fecha, fotoUrl: soloHttps(fotoUrl), fotoEnlace: soloHttps(fotoEnlace), cuerpoHtml: textos.aParrafosHtml(cuerpoTexto)
+        title: titulo, pieHtml: pieHtml || '', nombre, cuil, fecha, fotoUrl: soloHttps(fotoUrl), fotoEnlace: soloHttps(fotoEnlace), cuerpoHtml: cuerpoHtml != null ? cuerpoHtml : textos.aParrafosHtml(cuerpoTexto)
     }, { async: false });
 }
 
@@ -44,10 +47,13 @@ module.exports.crearEnviarCorreo = function (deps) {
             const e = await fotos.crearEnlace(deps.db, { idValidacion: id, idUsuario: p.id_usuario, creadoPor: req.user && req.user.email });
             const fotoEnlace = deps.urlBase() + '/vida/f/' + e.codigo;
             datos.enlace_foto = fotoEnlace;
-            const cuerpoTexto = textos.render(texto.cuerpo, datos).texto;
+            const esHtml = texto.formato === 'html';
+            const cuerpoTexto = esHtml ? '' : textos.render(texto.cuerpo, datos).texto;
+            const cuerpoHtml = esHtml ? textos.renderHtml(texto.cuerpo, datos).html : null;
             const asunto = textos.render(texto.asunto || 'TuID Vida', datos).texto;
             const fotoUrl = deps.firmarFoto(fotos.claveFotoCertificacion(p.dni, p.sexo), SEGUNDOS_FOTO_CORREO);
-            const html = await armarCorreo({ titulo: asunto, nombre, cuil: datos.cuil, fecha, cuerpoTexto, fotoUrl, fotoEnlace });
+            const pieHtml = await pieCorreo.obtener(deps.db, datos);
+            const html = await armarCorreo({ titulo: asunto, nombre, cuil: datos.cuil, fecha, cuerpoTexto, cuerpoHtml, pieHtml, fotoUrl, fotoEnlace });
 
             await deps.enviar(html, asunto, p.email);
             const marca = ` Mail:observada(${fecha})`;
