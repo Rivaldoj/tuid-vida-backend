@@ -10,6 +10,7 @@ const { response } = require('express');
 const c = require('config');
 const person = require('../padron/person');
 const cuilUtil = require('./../../utils/cuil');
+const settings = require('./../../utils/settings');
 
 module.exports.login2 = (req, res, next) => {
     res.response = {
@@ -816,7 +817,7 @@ module.exports.getCertificate = async (req, res, next) => {
         statusQuery = userStatusQuery.replace('WHERE u.dni = ? and u.sexo = ?', 'WHERE u.cuil = ?');
         statusParams = [cuilUtil.normalize(req.query.cuil)];
     }
-    VIDA_DB.query(statusQuery, statusParams, function (err, row) {
+    VIDA_DB.query(statusQuery, statusParams, async function (err, row) {
         console.log(err);
         console.log(row);
 
@@ -828,7 +829,8 @@ module.exports.getCertificate = async (req, res, next) => {
             if (row[0].auditor2 == null || row[0].auditor2.length<1) {
                 res.response.code = "10010";
                 let fecha = convert(row[0].fecha_valida);
-                res.response.message = "Su Certificación realizada el " + fecha + "  se encuentra en proceso de revisión. En las próximas 48 horas hábiles podrá acceder a su certificado.";
+                // el texto y las horas se editan desde el panel (Auditoria > configuracion); sin configuracion se usa el aviso de siempre
+                res.response.message = await settings.mensajeRevision(fecha);
                 return res.status(200).json(res.response);
             }
 

@@ -130,6 +130,8 @@ router.delete('/auth/auditoria/validaciones/:id_validacion', adminMiddleware,has
 //CONFIGURACION (solo Administrador de TUID)
 router.get('/auth/configuracion/auditoria', adminMiddleware, hasPermission("CONFIGURACION"), services.configuracion.getAuditoria);
 router.post('/auth/configuracion/auditoria', adminMiddleware, hasPermission("CONFIGURACION"), services.configuracion.setAuditoria);
+router.get('/auth/configuracion/certificado', adminMiddleware, hasPermission("CONFIGURACION"), services.configuracion.getCertificado);
+router.post('/auth/configuracion/certificado', adminMiddleware, hasPermission("CONFIGURACION"), services.configuracion.setCertificado);
 
 //CORREO DE AUDITORIA con la foto de la certificacion (texto del Modulo de Textos)
 router.post('/auth/auditoria/enviar-correo', adminMiddleware, hasPermission("AUDITORIA"), require('../services/vida/admin/correos').crearEnviarCorreo({

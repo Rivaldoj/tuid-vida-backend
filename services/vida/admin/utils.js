@@ -24,7 +24,9 @@ module.exports.notifications = async (req,res,next)=>{
         }
         else if (body){
             if (body.creditos && body.creditos.length > 0){
-                res.response.data.push(`Creditos en Teleprom: ${body.creditos[0].creditos}. Cuenta suspendida: ${body.creditos[0].suspendido}`)
+                // Los creditos de SMS ya no van como aviso emergente: el panel los muestra en la barra superior
+                const c = body.creditos[0];
+                res.response.sms = { creditos: Number(c.creditos), suspendido: c.suspendido === true || String(c.suspendido).toLowerCase() === 'true' };
             }
         }
         return res.status(200).json(res.response);
