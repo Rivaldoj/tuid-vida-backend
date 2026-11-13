@@ -602,6 +602,11 @@
           "idDocument"
         ],
         "properties": {
+          "cuil": {
+            "type": "string",
+            "description": "CUIL que escribió la persona (11 dígitos). Si viene, el servidor lo busca en el padrón y compara DNI, sexo, apellido y nombre del documento; si no coinciden rechaza el registro. Si no viene, se busca por DNI y sexo.",
+            "example": "20123456786"
+          },
           "idDevice": {
             "type": "string",
             "description": "Token FCM del dispositivo",
@@ -726,6 +731,11 @@
             "type": "string",
             "description": "Código NFC de 6 dígitos (solo si `nfc` = true)",
             "example": "123456"
+          },
+          "pais": {
+            "type": "string",
+            "description": "Nacionalidad tal como figura en el documento (3 letras, por ejemplo `ARG`). Se guarda en `usuario.pais`.",
+            "example": "ARG"
           },
           "barcode": {
             "type": "string",

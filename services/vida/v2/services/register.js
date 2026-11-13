@@ -5,6 +5,8 @@ const slack = require('../../../../utils/slack');
 const person = require('../../../padron/person');
 const questions = require('../../../padron/questions');
 const shared = require('./shared');
+const cuilUtil = require('../../../../utils/cuil');
+const identidad = require('../../../../utils/identidad');
 
 const rekognition = new AWS.Rekognition();
 const tuidVidaConfig = CONFIG.get('vida');
@@ -119,13 +121,30 @@ module.exports.verifyRecords = async (req, res, next) => {
 
 module.exports.checkMaster = async (req, res, next) => {
     try {
-        const found = await person.findPerson(req.body.idDocument.number, req.body.idDocument.gender);
-        if (!found) {
+        const doc = req.body.idDocument;
+        const declaredCuil = cuilUtil.isValid(req.body.cuil) ? cuilUtil.normalize(req.body.cuil) : null;
+        let row;
+        if (declaredCuil) {
+            // El CUIL escrito por la persona se busca en el padron y se compara con el DNI, sexo, nombre y apellido del documento
+            row = await person.findByCuil(declaredCuil);
+        } else {
+            const found = await person.findPerson(doc.number, doc.gender);
+            row = found ? found.row : null;
+        }
+        if (!row) {
             res.response.status = 204;
-            slack.error(req.body.idDocument.number + ' ' + req.body.idDocument.gender + ' No pudo registrarse por que no figura en los registros');
+            slack.error(doc.number + ' ' + doc.gender + ' No pudo registrarse por que no figura en los registros');
             return sendError(req, res, 'No se encontraron datos en nuestros registros. Comuniquese mediante el formulario de contacto para que podamos resolver su inconveniente.');
         }
-        req.masterData = found.row;
+        if (declaredCuil) {
+            const result = identidad.compare({ cuil: declaredCuil, number: doc.number, gender: doc.gender, name: doc.name, lastname: doc.lastname }, row);
+            if (!result.ok) {
+                res.response.status = 204;
+                slack.error(doc.number + ' ' + doc.gender + ' Registro rechazado: el documento no coincide con el padron (' + result.motivo + ')');
+                return sendError(req, res, 'Los datos de su documento no coinciden con nuestros registros (CUIL, nombre o apellido). Verifique el CUIL ingresado o comuniquese mediante el formulario de contacto para que podamos resolver su inconveniente.');
+            }
+        }
+        req.masterData = row;
         next();
     } catch (err) {
         console.log(err);
@@ -248,6 +267,7 @@ module.exports.createUser = async (req, res, next) => {
             os: req.body.os || null,
             version: req.body.version || null,
             tipo: doc.type || null,
+            pais: doc.pais ? String(doc.pais).trim().toUpperCase().substr(0, 20) : null,
             nfc: doc.nfc ? 1 : 0,
             nfc_opencode: doc.nfcCode || null,
             ejemplar: doc.example || null,
