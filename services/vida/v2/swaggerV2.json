@@ -602,11 +602,6 @@
           "idDocument"
         ],
         "properties": {
-          "cuil": {
-            "type": "string",
-            "description": "CUIL que escribió la persona (11 dígitos). Si viene, el servidor lo busca en el padrón y compara DNI, sexo, apellido y nombre del documento; si no coinciden rechaza el registro. Si no viene, se busca por DNI y sexo.",
-            "example": "20123456786"
-          },
           "idDevice": {
             "type": "string",
             "description": "Token FCM del dispositivo",
