@@ -67,4 +67,14 @@ async function evaluar(doc, row) {
     }
 }
 
-module.exports = { leerConfig, validarConfig, guardarConfig, evaluar, MARCA_OBSERVADO, TOLERANCIA_POR_DEFECTO };
+/**
+ * Texto para la pantalla "Errores en registros" (columna varchar(255)): que dice el documento, que dice el padron y el parecido.
+ * Ejemplo: "OBSERVADA: Documento: RIVALDO, JORGE MODESTO | Padrón: RIVALDO, JORGE | apellido 100%, nombre 37.1% (mínimo 80%)"
+ */
+function describirDiferencia(doc, row, detalle) {
+    const padron = row && row.Apellido && row.Nombre ? `${row.Apellido}, ${row.Nombre}` : String((row && row.Apellido_Nombre) || '');
+    const texto = `OBSERVADA: Documento: ${doc.lastname}, ${doc.name} | Padrón: ${padron} | ${detalle}`;
+    return texto.length > 255 ? texto.slice(0, 252) + '...' : texto;
+}
+
+module.exports = { describirDiferencia, leerConfig, validarConfig, guardarConfig, evaluar, MARCA_OBSERVADO, TOLERANCIA_POR_DEFECTO };

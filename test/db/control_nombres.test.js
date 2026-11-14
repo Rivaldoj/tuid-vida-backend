@@ -101,6 +101,9 @@ async function llamar(handler, body) {
     const al = await q("SELECT comentarios FROM alertas WHERE cuil = '20201112222'");
     assert.strictEqual(al.length, 1);
     assert.ok(al[0].comentarios.includes('no coincide con padron.master'));
+    const err = await q("SELECT message, nombre FROM errors WHERE dni = '20111222' ORDER BY id DESC LIMIT 1");
+    assert.ok(err[0].message.startsWith('OBSERVADA: Documento: GOMEZ, MARCOS | Padrón: PEREZ, JUAN CARLOS |'), err[0].message);
+    assert.ok(err[0].message.length <= 255);
     assert.strictEqual(avisos.slack.length, 1);
     assert.strictEqual(avisos.mail.length, 1);
     assert.strictEqual(avisos.mail[0][0], 'validationAlert');

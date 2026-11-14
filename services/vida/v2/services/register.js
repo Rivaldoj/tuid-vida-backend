@@ -265,7 +265,7 @@ module.exports.createUser = async (req, res, next) => {
         };
         if (control.observado) user.auditor = controlNombres.MARCA_OBSERVADO;
         const result = await VIDA_DB.sync_query('INSERT INTO usuario SET ?, fecha=now()', [user]);
-        if (control.observado) avisarObservado(master.CUIL, result.insertId, control.detalle);
+        if (control.observado) avisarObservado(master, result.insertId, doc, control.detalle);
         res.response.res = 'ok';
         res.response.iduser = result.insertId;
         return res.status(200).json(res.response);
@@ -284,8 +284,14 @@ module.exports.createUser = async (req, res, next) => {
 
 // Registracion observada por no coincidir el nombre del documento con el padron: queda en `alertas`, en Slack y por correo a Auditoria.
 // Nunca frena el registro: si falla el aviso, la registracion igual queda observada.
-async function avisarObservado(cuil, idUsuario, detalle) {
+async function avisarObservado(master, idUsuario, doc, detalle) {
+    const cuil = master.CUIL;
     const comentario = `Registración observada por el padrón: el nombre del documento no coincide con padron.master (${detalle}). Registración ${idUsuario} CUIL ${cuil}`;
+    // queda tambien en la pantalla "Errores en registros", mostrando la diferencia
+    try {
+        await VIDA_DB.sync_query('INSERT INTO errors (dni, sexo, message, nombre) VALUES (?, ?, ?, ?)',
+            [doc.number, doc.gender, controlNombres.describirDiferencia(doc, master, detalle), `${doc.name} ${doc.lastname}`.slice(0, 100)]);
+    } catch (err) { console.log(err); }
     try {
         await VIDA_DB.sync_query('INSERT INTO alertas (cuil, comentarios, fecha) VALUES (?, ?, now())', [cuil, comentario]);
     } catch (err) { console.log(err); }
