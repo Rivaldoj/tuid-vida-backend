@@ -134,6 +134,8 @@ router.get('/auth/backups', adminMiddleware, hasPermission("BACKUPS"), services.
 router.post('/auth/backups/ejecutar', adminMiddleware, hasPermission("BACKUPS"), services.backups.ejecutar);
 router.get('/auth/backups/descargar', adminMiddleware, hasPermission("BACKUPS"), services.backups.descargar);
 router.post('/auth/backups/configuracion', adminMiddleware, hasPermission("BACKUPS"), services.backups.setConfig);
+router.get('/auth/configuracion/control-nombres', adminMiddleware, hasPermission("CONFIGURACION"), services.configuracion.getControlNombres);
+router.post('/auth/configuracion/control-nombres', adminMiddleware, hasPermission("CONFIGURACION"), services.configuracion.setControlNombres);
 router.get('/auth/configuracion/certificado', adminMiddleware, hasPermission("CONFIGURACION"), services.configuracion.getCertificado);
 router.post('/auth/configuracion/certificado', adminMiddleware, hasPermission("CONFIGURACION"), services.configuracion.setCertificado);
 

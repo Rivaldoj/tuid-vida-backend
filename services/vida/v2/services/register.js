@@ -5,6 +5,8 @@ const slack = require('../../../../utils/slack');
 const person = require('../../../padron/person');
 const questions = require('../../../padron/questions');
 const shared = require('./shared');
+const mail = require('../../../../utils/mail');
+const controlNombres = require('../../../../utils/controlNombres');
 
 const rekognition = new AWS.Rekognition();
 const tuidVidaConfig = CONFIG.get('vida');
@@ -227,6 +229,8 @@ module.exports.createUser = async (req, res, next) => {
     }
     try {
         const empresas = await VIDA_DB.sync_query('SELECT empresa FROM usuario_empresa WHERE cuil=?', [master.CUIL]);
+        // Nombre y apellido del documento contra el padron (por aproximacion): si difieren, la registracion queda OBSERVADA
+        const control = await controlNombres.evaluar(doc, master);
         const user = {
             dni: master.DNI,
             sexo: master.Sexo,
@@ -259,7 +263,9 @@ module.exports.createUser = async (req, res, next) => {
             barcode: doc.barcode || null,
             mrz: doc.mrz || null,
         };
+        if (control.observado) user.auditor = controlNombres.MARCA_OBSERVADO;
         const result = await VIDA_DB.sync_query('INSERT INTO usuario SET ?, fecha=now()', [user]);
+        if (control.observado) avisarObservado(master.CUIL, result.insertId, control.detalle);
         res.response.res = 'ok';
         res.response.iduser = result.insertId;
         return res.status(200).json(res.response);
@@ -274,6 +280,19 @@ module.exports.createUser = async (req, res, next) => {
         saveError(req, res);
         return res.status(200).json(res.response);
     }
+}
+
+// Registracion observada por no coincidir el nombre del documento con el padron: queda en `alertas`, en Slack y por correo a Auditoria.
+// Nunca frena el registro: si falla el aviso, la registracion igual queda observada.
+async function avisarObservado(cuil, idUsuario, detalle) {
+    const comentario = `Registración observada por el padrón: el nombre del documento no coincide con padron.master (${detalle}). Registración ${idUsuario} CUIL ${cuil}`;
+    try {
+        await VIDA_DB.sync_query('INSERT INTO alertas (cuil, comentarios, fecha) VALUES (?, ?, now())', [cuil, comentario]);
+    } catch (err) { console.log(err); }
+    try {
+        slack.debug(comentario);
+        mail.send('validationAlert', { title: comentario }, tuidVidaConfig.supportContact, [tuidVidaConfig.supportContact], null);
+    } catch (err) { console.log(err); }
 }
 
 module.exports.session = async (req, res) => {
