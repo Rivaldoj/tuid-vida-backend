@@ -13,6 +13,7 @@ const textos = require('./textos');
 const manuales = require('./manuales');
 const forms = require('./forms');
 const sisa = require('./sisa');
+const backups = require('./backups');
 
 
 module.exports = {
@@ -30,5 +31,6 @@ module.exports = {
     textos,
     manuales,
     forms,
-    sisa
+    sisa,
+    backups
 }

@@ -130,6 +130,10 @@ router.delete('/auth/auditoria/validaciones/:id_validacion', adminMiddleware,has
 //CONFIGURACION (solo Administrador de TUID)
 router.get('/auth/configuracion/auditoria', adminMiddleware, hasPermission("CONFIGURACION"), services.configuracion.getAuditoria);
 router.post('/auth/configuracion/auditoria', adminMiddleware, hasPermission("CONFIGURACION"), services.configuracion.setAuditoria);
+router.get('/auth/backups', adminMiddleware, hasPermission("BACKUPS"), services.backups.get);
+router.post('/auth/backups/ejecutar', adminMiddleware, hasPermission("BACKUPS"), services.backups.ejecutar);
+router.get('/auth/backups/descargar', adminMiddleware, hasPermission("BACKUPS"), services.backups.descargar);
+router.post('/auth/backups/configuracion', adminMiddleware, hasPermission("BACKUPS"), services.backups.setConfig);
 router.get('/auth/configuracion/certificado', adminMiddleware, hasPermission("CONFIGURACION"), services.configuracion.getCertificado);
 router.post('/auth/configuracion/certificado', adminMiddleware, hasPermission("CONFIGURACION"), services.configuracion.setCertificado);
 

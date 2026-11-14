@@ -661,7 +661,7 @@ function getUserPermissions(user){
         permissions.splice(permissions.indexOf('ALERTAS'), 1);
     }
     // Configuracion global (por ejemplo el interruptor de auditoria): solo el Administrador de TUID
-    if (user.empresa == "TUID" && user.rol != "U") { permissions.push("CONFIGURACION"); permissions.push("TEXTOS"); permissions.push("EMPRESAS"); }
+    if (user.empresa == "TUID" && user.rol != "U") { permissions.push("CONFIGURACION"); permissions.push("TEXTOS"); permissions.push("EMPRESAS"); permissions.push("BACKUPS"); }
     return permissions;
 
 }

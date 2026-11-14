@@ -43,6 +43,7 @@ setTimeout(() => {
     require('./startup/aws')();
     require('./startup/routes.js')(app);
     require('./utils/webhooks').startRetryWorker();
+    if (!TESTING) require('./utils/backups').iniciar();
     let port = process.env.PORT || CONFIG.get('port');
 
     app.listen(port,TESTING?'0.0.0.0':null, ()=>{
