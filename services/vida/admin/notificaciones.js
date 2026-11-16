@@ -53,11 +53,40 @@ async function buscar(db, f) {
     }
     return db.sync_query(
         `SELECT t.* FROM (
-            SELECT u.id_usuario, u.nombre, u.apellido, u.cuil, u.id_device, ue.empresa,
+            SELECT u.id_usuario, u.nombre, u.apellido, u.cuil, u.id_device, u.telefono, u.email, u.fecha, u.fecha_valida, ue.empresa,
                    (SELECT MAX(a.fecha) FROM auditoria a WHERE a.id_usuario = u.id_usuario AND a.empresa = ue.empresa) AS ultima
             FROM usuario u JOIN usuario_empresa ue ON ue.cuil = u.cuil
             WHERE ue.empresa = ? AND u.fecha_fallecido IS NULL
          ) t WHERE 1 = 1 ${donde} ORDER BY t.apellido, t.nombre LIMIT ${MAX_DESTINATARIOS + 1}`, params);
+}
+
+// El id_device es el token de Firebase del telefono: se renueva al reinstalar la app, cambiar de telefono o borrar sus datos, y Firebase lo da por
+// vencido cuando el telefono pasa unos 270 dias sin conectarse. El servidor lo actualiza en cada certificacion, asi que su antiguedad es la de la
+// ultima certificacion (o la del registro si nunca certifico).
+const DIAS_TOKEN_VENCIDO = 270;
+
+function diasDesde(valor, ahora) {
+    if (!valor) return null;
+    const t = new Date(valor).getTime();
+    return isNaN(t) ? null : Math.floor(((ahora || Date.now()) - t) / 86400000);
+}
+
+// true si el token de esa persona probablemente ya no sirva por antiguedad
+function tokenProbablementeVencido(p, ahora) {
+    if (!p.id_device) return false;
+    const dias = diasDesde(p.fecha_valida || p.fecha, ahora);
+    return dias !== null && dias > DIAS_TOKEN_VENCIDO;
+}
+
+// Motivo de un envio fallido, en palabras (codigos de FCM HTTP v1)
+function textoMotivo(motivo) {
+    const m = String(motivo || '').toUpperCase();
+    if (m === 'UNREGISTERED' || m === 'NOT_FOUND') return 'El teléfono ya no está registrado (app desinstalada o dispositivo cambiado)';
+    if (m === 'INVALID_ARGUMENT') return 'Token de dispositivo inválido';
+    if (m === 'SENDER_ID_MISMATCH') return 'Token de otra aplicación';
+    if (m === 'UNAVAILABLE' || m === 'INTERNAL' || m === 'QUOTA_EXCEEDED') return 'Firebase no disponible (conviene reintentar)';
+    if (m === 'SIN TOKEN DE DISPOSITIVO') return 'Sin la app instalada';
+    return motivo ? String(motivo) : 'Motivo desconocido';
 }
 
 function datosPersona(p) {
@@ -92,8 +121,11 @@ module.exports.crear = function (deps) {
             if (v.error) return responder(res, 1, v.error);
             const filas = await buscar(db, v.filtros);
             const conDispositivo = filas.filter((p) => p.id_device).length;
+            const probablementeSinPush = filas.filter((p) => tokenProbablementeVencido(p)).length;
             return responder(res, 0, {
                 total: Math.min(filas.length, MAX_DESTINATARIOS), conDispositivo, sinDispositivo: filas.length - conDispositivo,
+                // con dispositivo registrado pero sin certificar hace mas de 270 dias: es probable que el token ya no exista y no reciban nada
+                probablementeSinPush, diasTokenVencido: DIAS_TOKEN_VENCIDO,
                 excedeLimite: filas.length > MAX_DESTINATARIOS, limite: MAX_DESTINATARIOS,
                 ejemplo: filas.slice(0, 5).map((p) => `${textos.capitalizar(p.nombre)} ${textos.capitalizar(p.apellido)}`)
             });
@@ -130,18 +162,70 @@ module.exports.crear = function (deps) {
 
             let enviados = 0;
             let fallidos = 0;
+            const motivos = {};          // motivo (texto) -> cantidad
+            const muertos = [];          // personas cuyo token Firebase dio por inexistente
+            const noAlcanzados = [];     // personas a las que no les llego (con la razon), para contactarlas por otro medio
             for (let i = 0; i < conDispositivo.length; i += 20) {
                 const lote = conDispositivo.slice(i, i + 20);
                 const rs = await Promise.all(lote.map((p) => {
                     const d = datosPersona(p);
                     return deps.push.sendAsync(p.id_device, textos.render(titulo, d).texto, textos.render(cuerpo, d).texto);
                 }));
-                rs.forEach((r) => { if (r.ok) enviados++; else fallidos++; });
+                rs.forEach((r, k) => {
+                    if (r.ok) { enviados++; return; }
+                    fallidos++;
+                    const texto = textoMotivo(r.motivo);
+                    motivos[texto] = (motivos[texto] || 0) + 1;
+                    noAlcanzados.push({ persona: lote[k], motivo: texto });
+                    if (r.tokenInvalido) muertos.push(lote[k]);
+                });
             }
-            await db.sync_query(
-                'INSERT INTO notificaciones_envios (fecha, usuario, empresa, modo, filtros, clave_texto, titulo, destinatarios, enviados, fallidos) VALUES (NOW(), ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-                [req.user.email || null, v.filtros.empresa, v.filtros.modo, resumenFiltros(v.filtros).slice(0, 200), clave, titulo.slice(0, 200), conDispositivo.length, enviados, fallidos]);
-            return responder(res, 0, { enviados, fallidos, sinDispositivo: filas.length - conDispositivo.length });
+            // Token que Firebase dice que ya no existe: se deja de usar (queda "sin la app" hasta que la persona certifique de nuevo y se guarde el nuevo).
+            // Solo se borra si sigue siendo el mismo token (por si la persona certifico desde otro telefono mientras se enviaba).
+            let invalidos = 0;
+            for (const p of muertos) {
+                try {
+                    const r = await db.sync_query('UPDATE usuario SET id_device = NULL WHERE id_usuario = ? AND id_device = ?', [p.id_usuario, p.id_device]);
+                    if (r && r.affectedRows) invalidos++;
+                } catch (e) { console.log('[notificaciones] no se pudo limpiar el token de', p.id_usuario, e && e.message); }
+            }
+            const sinApp = filas.filter((p) => !p.id_device);
+            sinApp.forEach((p) => noAlcanzados.push({ persona: p, motivo: textoMotivo('sin token de dispositivo') }));
+
+            // Datos de contacto en la lista de no alcanzados: solo los que la empresa tiene permitido ver (TUID ve todo)
+            let verTelefono = req.user.empresa === 'TUID';
+            let verEmail = req.user.empresa === 'TUID';
+            if (!verTelefono) {
+                try {
+                    const [e] = await db.sync_query('SELECT emails, telefonos FROM empresa WHERE id = ?', [v.filtros.empresa]);
+                    verTelefono = !!(e && Number(e.telefonos) === 1);
+                    verEmail = !!(e && Number(e.emails) === 1);
+                } catch (e) { /* sin permiso de datos de contacto */ }
+            }
+            const lista = noAlcanzados.slice(0, MAX_DESTINATARIOS).map((n) => ({
+                cuil: n.persona.cuil == null ? '' : String(n.persona.cuil),
+                nombre: textos.capitalizar(n.persona.nombre), apellido: textos.capitalizar(n.persona.apellido),
+                motivo: n.motivo,
+                telefono: verTelefono ? (n.persona.telefono || '') : null,
+                email: verEmail ? (n.persona.email || '') : null
+            }));
+
+            const detalle = JSON.stringify({ motivos, tokensEliminados: invalidos, sinApp: sinApp.length }).slice(0, 400);
+            const fila = [req.user.email || null, v.filtros.empresa, v.filtros.modo, resumenFiltros(v.filtros).slice(0, 200), clave, titulo.slice(0, 200), conDispositivo.length, enviados, fallidos];
+            try {
+                await db.sync_query(
+                    'INSERT INTO notificaciones_envios (fecha, usuario, empresa, modo, filtros, clave_texto, titulo, destinatarios, enviados, fallidos, detalle, invalidos) VALUES (NOW(), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                    fila.concat([detalle, invalidos]));
+            } catch (e) {
+                // La base todavia no tiene las columnas detalle / invalidos (scripts/sql/notificaciones_detalle.sql): se registra el envio como antes
+                await db.sync_query(
+                    'INSERT INTO notificaciones_envios (fecha, usuario, empresa, modo, filtros, clave_texto, titulo, destinatarios, enviados, fallidos) VALUES (NOW(), ?, ?, ?, ?, ?, ?, ?, ?, ?)', fila);
+            }
+            return responder(res, 0, {
+                enviados, fallidos, sinDispositivo: sinApp.length,
+                motivos: Object.keys(motivos).map((m) => ({ motivo: m, cantidad: motivos[m] })).sort((a, b) => b.cantidad - a.cantidad),
+                tokensEliminados: invalidos, noAlcanzados: lista
+            });
         } catch (err) {
             console.log(err);
             return responder(res, 1, 'No se pudieron enviar las notificaciones');
@@ -164,3 +248,6 @@ module.exports.crear = function (deps) {
     return { mensajes, destinatarios, enviar, historial };
 };
 module.exports.validarFiltros = validarFiltros;
+module.exports.tokenProbablementeVencido = tokenProbablementeVencido; // para pruebas
+module.exports.textoMotivo = textoMotivo;
+module.exports.DIAS_TOKEN_VENCIDO = DIAS_TOKEN_VENCIDO;

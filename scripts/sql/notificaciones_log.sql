@@ -11,5 +11,7 @@ CREATE TABLE IF NOT EXISTS notificaciones_envios (
   destinatarios INT NOT NULL DEFAULT 0,
   enviados INT NOT NULL DEFAULT 0,
   fallidos INT NOT NULL DEFAULT 0,
+  detalle VARCHAR(400) NULL,
+  invalidos INT NOT NULL DEFAULT 0,
   KEY (fecha), KEY (empresa)
 );
