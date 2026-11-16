@@ -8,7 +8,8 @@ const HISTORY_LIMIT = 20;
 // Frenos contra consultas masivas (enumeracion de CUIL). Por origen: ver nota de proxy en el informe.
 const registrationLimiter = createLimiter({ max: 30, windowMs: 10 * 60 * 1000 });
 const historyLimiter = createLimiter({ max: 20, windowMs: 10 * 60 * 1000 });
-setInterval(() => { registrationLimiter.sweep(); historyLimiter.sweep(); }, 10 * 60 * 1000).unref();
+const deviceLimiter = createLimiter({ max: 30, windowMs: 10 * 60 * 1000 });
+setInterval(() => { registrationLimiter.sweep(); historyLimiter.sweep(); deviceLimiter.sweep(); }, 10 * 60 * 1000).unref();
 
 function origin(req) {
     return String(req.ip || (req.connection && req.connection.remoteAddress) || 'unknown');
@@ -166,4 +167,41 @@ async function history(req, res) {
     }
 }
 
-module.exports = { checkRegistration, history, registrationStatus, groupCertifications, proximasCertificaciones, formatFecha };
+// Token de Firebase: letras, numeros y _ - : . (unos 160 caracteres); se acota para no guardar cualquier cosa
+function tokenValido(t) {
+    return typeof t === 'string' && t.length >= 16 && t.length <= 4096 && /^[A-Za-z0-9_:.\-]+$/.test(t);
+}
+
+// POST /refreshdevice { cuil, idDevice, newIdDevice }
+// La app avisa que Firebase le renovo el token (idDevice = el que el servidor tiene, newIdDevice = el nuevo). Solo se cambia si idDevice coincide
+// con el token guardado: la prueba de que es el mismo telefono es conocer el token anterior (igual que /history). Sin esa prueba no se toca nada:
+// con solo el CUIL cualquiera podria quedarse con las notificaciones y el historial de otra persona. Un telefono nuevo se vincula con una Fe de Vida.
+async function refreshDevice(req, res) {
+    const denied = 'No pudimos actualizar el dispositivo.';
+    if (!deviceLimiter.allow(origin(req))) {
+        return error(res, 'Demasiados intentos. Espere unos minutos e inténtelo nuevamente.');
+    }
+    const cuil = cuilUtil.normalize(req.body && req.body.cuil);
+    const anterior = req.body && req.body.idDevice;
+    const nuevo = req.body && req.body.newIdDevice;
+    if (!cuilUtil.isValid(cuil) || !tokenValido(anterior) || !tokenValido(nuevo) || anterior === nuevo) {
+        return error(res, denied);
+    }
+    try {
+        const users = await VIDA_DB.sync_query(
+            'SELECT id_usuario, id_device FROM usuario WHERE cuil = ? AND fecha_fallecido IS NULL', [cuil]);
+        // mismo mensaje si no existe o si el token anterior no coincide: no se revela cual de los dos fue
+        if (users.length !== 1) return error(res, denied);
+        const guardado = users[0].id_device;
+        if (sameSecret(guardado, nuevo)) return reply(res, { res: 'ok', message: 'ok' });   // ya estaba actualizado (reintento de la app)
+        if (!sameSecret(guardado, anterior)) return error(res, denied);
+        // el WHERE vuelve a exigir el token anterior: si cambio mientras tanto (por ejemplo una Fe de Vida desde otro telefono), no se pisa
+        await VIDA_DB.sync_query('UPDATE usuario SET id_device = ? WHERE id_usuario = ? AND id_device = ?', [nuevo, users[0].id_usuario, guardado]);
+        return reply(res, { res: 'ok', message: 'ok' });
+    } catch (err) {
+        console.log(err);
+        return error(res, 'No pudimos actualizar el dispositivo. Verifique su conexión a Internet e inténtelo nuevamente.');
+    }
+}
+
+module.exports = { checkRegistration, history, refreshDevice, tokenValido, registrationStatus, groupCertifications, proximasCertificaciones, formatFecha };

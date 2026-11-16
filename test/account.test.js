@@ -107,6 +107,50 @@ function call(handler, body, ip = '1.1.1.1') {
     r = await call(account.history, { cuil: '20123456787', idDevice: 'x' }, '5.5.5.5');
     assert.strictEqual(r.message, denied);
 
+    // --- refreshdevice: la app avisa que Firebase le renovo el token; se prueba con el token anterior
+    const VIEJO = 'fcm-token-viejo-0123456789:APA91b-abcdefghijklmnop';
+    const NUEVO = 'fcm-token-nuevo-9876543210:APA91b-qrstuvwxyzabcdef';
+    const deniedR = 'No pudimos actualizar el dispositivo.';
+    // token anterior correcto: se actualiza, y el UPDATE vuelve a exigir el token anterior
+    dbAnswers = [[{ id_usuario: 7, id_device: VIEJO }], { affectedRows: 1 }];
+    queries = [];
+    r = await call(account.refreshDevice, { cuil: CUIL, idDevice: VIEJO, newIdDevice: NUEVO }, '6.6.6.6');
+    assert.strictEqual(r.res, 'ok');
+    assert.strictEqual(queries.length, 2);
+    assert.ok(/UPDATE usuario SET id_device = \? WHERE id_usuario = \? AND id_device = \?/.test(queries[1].q));
+    assert.deepStrictEqual(queries[1].p, [NUEVO, 7, VIEJO]);
+    // reintento de la app: el servidor ya tiene el token nuevo -> ok sin tocar nada
+    dbAnswers = [[{ id_usuario: 7, id_device: NUEVO }]];
+    queries = [];
+    r = await call(account.refreshDevice, { cuil: CUIL, idDevice: VIEJO, newIdDevice: NUEVO }, '6.6.6.6');
+    assert.strictEqual(r.res, 'ok');
+    assert.strictEqual(queries.length, 1, 'ya estaba actualizado: no hay UPDATE');
+    // sin prueba (el token anterior no es el guardado): no se toca nada y el mensaje no dice por que
+    dbAnswers = [[{ id_usuario: 7, id_device: 'OTRO-TELEFONO-0123456789' }]];
+    queries = [];
+    r = await call(account.refreshDevice, { cuil: CUIL, idDevice: VIEJO, newIdDevice: NUEVO }, '7.7.7.7');
+    assert.strictEqual(r.message, deniedR);
+    assert.strictEqual(queries.length, 1, 'sin prueba no hay UPDATE');
+    dbAnswers = [[]];
+    r = await call(account.refreshDevice, { cuil: CUIL, idDevice: VIEJO, newIdDevice: NUEVO }, '7.7.7.7');
+    assert.strictEqual(r.message, deniedR, 'mismo mensaje si el usuario no existe');
+    // datos invalidos: ni se consulta la base
+    queries = [];
+    for (const body of [
+        { cuil: CUIL, idDevice: VIEJO }, { cuil: CUIL, newIdDevice: NUEVO }, { cuil: CUIL, idDevice: VIEJO, newIdDevice: VIEJO },
+        { cuil: '20123456787', idDevice: VIEJO, newIdDevice: NUEVO }, { cuil: CUIL, idDevice: 'corto', newIdDevice: NUEVO },
+        { cuil: CUIL, idDevice: VIEJO, newIdDevice: 'tiene espacios y <script> 123456' }, { cuil: CUIL, idDevice: VIEJO, newIdDevice: 'x'.repeat(5000) }
+    ]) {
+        r = await call(account.refreshDevice, body, '8.8.8.8');
+        assert.strictEqual(r.message, deniedR, JSON.stringify(body).slice(0, 80));
+    }
+    assert.strictEqual(queries.length, 0, 'con datos invalidos no se consulta la base');
+    assert.ok(account.tokenValido(VIEJO) && !account.tokenValido('corto') && !account.tokenValido(null));
+    // freno por origen
+    let ultimo;
+    for (let i = 0; i < 40; i++) ultimo = await call(account.refreshDevice, { cuil: CUIL, idDevice: VIEJO, newIdDevice: NUEVO }, '9.9.9.9');
+    assert.ok(/Demasiados intentos/.test(ultimo.message), 'se frena la insistencia desde un mismo origen');
+
     console.log('account.test.js OK');
     process.exit(0);
 })().catch((e) => { console.error(e); process.exit(1); });
