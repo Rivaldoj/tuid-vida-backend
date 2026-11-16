@@ -1,6 +1,7 @@
 
 var lodash = require("lodash");
 const { initParams } = require("request");
+const periodoInforme = require('../../../utils/periodoInforme');
 
 module.exports.get = async (req, res) => {
 
@@ -178,12 +179,35 @@ module.exports.informeMensual = async (req, res) => {
         const porEmpresa = {};
         const nombreEmpresa = (e) => e || 'Sin empresa';
         const seccion = (e) => porEmpresa[nombreEmpresa(e)] || (porEmpresa[nombreEmpresa(e)] = { empresa: nombreEmpresa(e), registraciones: [], certificaciones: [] });
-        const fila = (r) => ({ cuil: r.cuil == null ? '' : String(r.cuil), nombre: r.nombre || '', fecha: r.fecha == null ? '' : String(r.fecha), similitud: r.similitud == null ? null : Number(r.similitud) });
+        // La fecha viaja como texto AAAA-MM-DD hh:mm:ss (si el driver devuelve un Date, se pasa a ese formato en hora de Argentina)
+        const fechaTxt = (v) => (v == null ? '' : v instanceof Date ? v.toLocaleDateString('en-CA', { timeZone: 'America/Argentina/Buenos_Aires' }) + ' ' + v.toLocaleTimeString('en-GB', { timeZone: 'America/Argentina/Buenos_Aires', hour12: false }) : String(v));
+        const fila = (r) => ({ cuil: r.cuil == null ? '' : String(r.cuil), nombre: r.nombre || '', fecha: fechaTxt(r.fecha), similitud: r.similitud == null ? null : Number(r.similitud) });
         regs.forEach((r) => seccion(r.empresa).registraciones.push(fila(r)));
         certs.forEach((r) => seccion(r.empresa).certificaciones.push(fila(r)));
         if (!todas) seccion(empresa); // la empresa pedida aparece aunque no tenga movimientos
         const empresas = Object.keys(porEmpresa).sort().map((k) => porEmpresa[k]);
-        return responder(0, { ano, mes, empresa: todas ? 'TUID' : empresa, todas, empresas });
+        // Periodo de cada empresa (tabla empresa: Fecha_actual, Fecha_fin, Cantidad) y certificaciones desde Fecha_actual hasta la fecha de corte.
+        // Si algo falla (por ejemplo faltan las columnas) el informe sale igual, sin ese bloque.
+        const corte = periodoInforme.fechaCorte(ano, mes);
+        try {
+            const nombres = empresas.map((e) => e.empresa);
+            if (nombres.length > 0) {
+                const filas = await VIDA_DB.sync_query('SELECT id, Fecha_actual AS fecha_actual, Fecha_fin AS fecha_fin, Cantidad AS cantidad FROM empresa WHERE id IN (?)', [nombres]);
+                const hechas = await VIDA_DB.sync_query(
+                    `SELECT a.empresa, COUNT(DISTINCT a.id_usuario) AS n FROM auditoria a JOIN empresa e ON e.id = a.empresa
+                     WHERE a.similitud > 1 AND e.Fecha_actual IS NOT NULL AND a.fecha >= e.Fecha_actual AND a.fecha < DATE_ADD(?, INTERVAL 1 DAY) AND a.empresa IN (?)
+                     GROUP BY a.empresa`, [corte, nombres]);
+                const nPor = {};
+                hechas.forEach((h) => { nPor[h.empresa] = h.n; });
+                empresas.forEach((e) => {
+                    const f = filas.find((x) => x.id === e.empresa);
+                    e.periodo = f ? periodoInforme.armarPeriodo(f, nPor[e.empresa] || 0, corte) : null;
+                });
+            }
+        } catch (err) {
+            console.log('Informe mensual: no se pudo leer el periodo de las empresas', err && err.message);
+        }
+        return responder(0, { ano, mes, empresa: todas ? 'TUID' : empresa, todas, corte, empresas });
     } catch (err) {
         console.log(err);
         return responder(1, 'No se pudo armar el informe');

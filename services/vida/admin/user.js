@@ -160,8 +160,15 @@ module.exports.forgot = async function(req, res, next) {
                 subject: 'Confirmacion TuID',
                 html: '<body><p>Esta recibiendo este email, porque usted (o alguien mas) pidio un cambio de contraseña para su cuenta.</p><p>Porfavor ingrese el siguiente token y su nueva contraseña para completar el proceso:</p><p><strong>' + token +'</strong> <p>Si usted no solicito esto, porfavor ignore este email y su password permanecera sin cambios.</p>'
             };
-            // SES por la API de AWS (antes: SMTP con usuario y clave escritos en el codigo)
-            require('../../../utils/mail').sendHtmlAsync(mailOptions.html, mailOptions.to, mailOptions.subject, mailOptions.from).then(function () { return null; }, function (err) { return err || new Error('email'); }).then(function (err) {
+            // El texto del correo se edita desde el panel (Textos, clave RECUPERAR_CLAVE_PANEL) y lleva el pie compartido.
+            // Si no existe, esta desactivado o falla, sale el mensaje fijo de arriba: nunca se deja a la persona sin su codigo.
+            var fila = (user && user[0]) || {};
+            var datosCorreo = { token: token, nombre: fila.Nombre || '', nombre_completo: fila.Nombre || '', empresa: fila.empresa || '' };
+            require('../recuperarClaveTexto').armar(VIDA_DB, datosCorreo).then(function (armado) {
+                if (armado) { mailOptions.html = armado.html; mailOptions.subject = armado.asunto; }
+                // SES por la API de AWS (antes: SMTP con usuario y clave escritos en el codigo)
+                return require('../../../utils/mail').sendHtmlAsync(mailOptions.html, mailOptions.to, mailOptions.subject, mailOptions.from);
+            }).then(function () { return null; }, function (err) { return err || new Error('email'); }).then(function (err) {
                 if(err){
                     appData.data = "Error servicio de email";
                     res.status(201).json(appData);
@@ -283,8 +290,15 @@ module.exports.getEmail = async function(req,res){
     
     res.response = {
         error : 0,
-        empresa: req.user.empresa
+        data: req.user.email,
+        email: req.user.email,
+        empresa: req.user.empresa,
+        nombre: null
     }
+    try {
+        const filas = await VIDA_DB.sync_query('SELECT c.Nombre AS nombre, e.nombre AS empresa_nombre FROM cliente c LEFT JOIN empresa e ON e.id = c.empresa WHERE c.email = ? LIMIT 1', [req.user.email]);
+        if (filas.length > 0) { res.response.nombre = filas[0].nombre || null; res.response.empresa_nombre = filas[0].empresa_nombre || null; }
+    } catch (e) { /* si todavia no existe la columna nombre, el encabezado muestra solo el correo */ }
     res.status(200).json(res.response);
 }
 
@@ -528,6 +542,14 @@ module.exports.upload = async(req,res,next)=>{
         "data": ""
     };
  //  if (req.user.empresa != "TUID") return res.status(100).json({issue: "seguridad"});
+    // Antes de subir hay que completar el periodo: inicio, fin, proxima validacion y cantidad de registros (todo obligatorio)
+    if (!file) { res.response.data = "Seleccione un archivo"; return res.status(200).json(res.response); }
+    const periodo = require('../../../utils/empresas').validarPeriodo(req.body);
+    if (periodo.error) {
+        fs.unlink(file.path, () => {});
+        res.response.data = periodo.error;
+        return res.status(200).json(res.response);
+    }
     slack.debug( 'El cliente ' + req.user.empresa + ' subio un nuevo archivo: ' + file.originalname);
     let stream = fs.createReadStream(file.path);
     let myArray = [];
@@ -543,6 +565,10 @@ module.exports.upload = async(req,res,next)=>{
         })
         .on("end", function () {
             console.log(myArray);
+            if (myArray.length !== periodo.valores.cantidad_registros) {
+                res.response.data = "La cantidad de registros declarada (" + periodo.valores.cantidad_registros + ") no coincide con la del archivo (" + myArray.length + ").";
+                return res.status(200).json(res.response);
+            }
             VIDA_DB.getConnection(function(err, connection) {
                 if (err) {
                     res.response.data = "Internal Server Error";
@@ -559,6 +585,9 @@ module.exports.upload = async(req,res,next)=>{
                                 res.response.data = "Fallo la subida, corrobore la delimitación y que no contenga duplicados";
                                 res.status(201).json(res.response);
                             }else{
+                                const pv = periodo.valores;
+                                connection.query('UPDATE tuid_vida.empresa SET Fecha_actual = ?, Fecha_fin = ?, Fecha_proxima = ?, Cantidad = ?, ultimo_archivo = NOW() WHERE id = ?',
+                                    [pv.fecha_actual, pv.fecha_fin, pv.fecha_proxima, pv.cantidad_registros, req.user.empresa], function(err) { if (err) console.log('[upload] no se guardo el periodo:', err.message); });
                                 let query =  'UPDATE tuid_vida.usuario_empresa SET dni = SUBSTRING(cuil,3,8) where empresa = ?;' +
                                     'commit;';
                                 connection.query(query, [req.user.empresa], function(err) {
@@ -660,8 +689,10 @@ function getUserPermissions(user){
         permissions.splice(permissions.indexOf('ERRORES'), 1);
         permissions.splice(permissions.indexOf('ALERTAS'), 1);
     }
+    // Administrador de una empresa cliente: ve su propia empresa (usuarios y periodo)
+    if (user.empresa != "TUID" && user.rol != "U") { permissions.push("MIEMPRESA"); }
     // Configuracion global (por ejemplo el interruptor de auditoria): solo el Administrador de TUID
-    if (user.empresa == "TUID" && user.rol != "U") { permissions.push("CONFIGURACION"); permissions.push("TEXTOS"); permissions.push("EMPRESAS"); permissions.push("BACKUPS"); }
+    if (user.empresa == "TUID" && user.rol != "U") { permissions.push("CONFIGURACION"); permissions.push("TEXTOS"); permissions.push("EMPRESAS"); permissions.push("BACKUPS"); permissions.push("CARGAFALLECIDOS"); }
     return permissions;
 
 }

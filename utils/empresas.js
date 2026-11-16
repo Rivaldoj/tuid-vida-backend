@@ -1,8 +1,9 @@
 // Validaciones y utilidades del ABM de Empresas y Administradores. Funciones puras (sin base de datos).
 const crypto = require('crypto');
+const cuilUtil = require('./cuil');
 
 // Columnas de `empresa` que el panel puede leer y modificar. Se usan solo las que existan realmente en la tabla (ver columnasEmpresa).
-const CAMPOS_EMPRESA = ['nombre', 'tipo', 'periodicidad', 'img', 'link', 'email', 'costo_validacion', 'visible', 'direcciones', 'emails', 'telefonos'];
+const CAMPOS_EMPRESA = ['nombre', 'CUIT', 'tipo', 'periodicidad', 'img', 'link', 'email', 'costo_validacion', 'visible', 'direcciones', 'emails', 'telefonos'];
 const CAMPOS_BANDERA = ['direcciones', 'emails', 'telefonos', 'visible']; // permisos de datos que pueden ver los administradores de la empresa en sus descargas
 
 // El identificador de la empresa es su nombre (asi se guarda en usuario_empresa, cliente y auditoria): mayusculas, digitos, espacio, _ y -
@@ -39,6 +40,12 @@ function validarEmpresa(body, tiposPermitidos, esAlta) {
         if (nombre.length > 100) return { error: 'El nombre para mostrar admite hasta 100 caracteres.' };
         v.nombre = nombre === '' ? null : nombre;
     }
+    // CUIT de la empresa (columna CUIT char(11)): opcional; si se carga debe estar bien formado (11 digitos con digito verificador)
+    if (b.CUIT !== undefined) {
+        const cuit = cuilUtil.normalize(b.CUIT);
+        if (cuit !== '' && !cuilUtil.isValid(cuit)) return { error: 'El CUIT no es válido (11 dígitos con dígito verificador).' };
+        v.CUIT = cuit === '' ? null : cuit;
+    }
     if (b.email !== undefined) {
         const email = String(b.email == null ? '' : b.email).trim();
         if (email !== '' && !emailValido(email)) return { error: 'El correo de la empresa no es válido.' };
@@ -72,6 +79,56 @@ function validarEmpresa(body, tiposPermitidos, esAlta) {
     return { valores: v };
 }
 
+
+// Fecha AAAA-MM-DD valida (o vacia -> null)
+function fechaOpcional(valor) {
+    if (valor == null || String(valor).trim() === '') return { ok: true, valor: null };
+    const v = String(valor).trim().slice(0, 10);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(v)) return { ok: false };
+    const d = new Date(v + 'T00:00:00Z');
+    return isNaN(d.getTime()) || d.toISOString().slice(0, 10) !== v ? { ok: false } : { ok: true, valor: v };
+}
+
+// Periodo de certificacion que se completa al subir el archivo: inicio, fin, proxima validacion (inicio <= fin <= proxima) y cantidad. Todo obligatorio.
+function validarPeriodo(b) {
+    b = b || {};
+    const etiquetas = { fecha_actual: 'fecha de inicio', fecha_fin: 'fecha de fin', fecha_proxima: 'fecha de próxima validación' };
+    const v = {};
+    for (const campo of Object.keys(etiquetas)) {
+        const r = fechaOpcional(b[campo]);
+        if (!r.ok || r.valor === null) return { error: 'Complete la ' + etiquetas[campo] + ' (formato AAAA-MM-DD).' };
+        v[campo] = r.valor;
+    }
+    if (v.fecha_fin < v.fecha_actual) return { error: 'La fecha de fin no puede ser anterior a la de inicio.' };
+    if (v.fecha_proxima < v.fecha_fin) return { error: 'La próxima validación no puede ser anterior a la fecha de fin.' };
+    const n = Number(b.cantidad_registros);
+    if (!Number.isInteger(n) || n < 1) return { error: 'La cantidad de registros debe ser un número entero mayor a cero.' };
+    v.cantidad_registros = n;
+    return { valores: v };
+}
+
+// Datos de una cuenta (usuario de una empresa cliente). El CUIL es obligatorio por seguridad.
+function validarCuenta(b, esAlta) {
+    b = b || {};
+    const v = {};
+    if (esAlta || b.cuil !== undefined) {
+        const cuil = cuilUtil.normalize(b.cuil);
+        if (!cuilUtil.isValid(cuil)) return { error: 'El CUIL es obligatorio y debe ser válido (11 dígitos con dígito verificador).' };
+        v.cuil = cuil;
+    }
+    if (esAlta || b.nombre !== undefined) {
+        const nombre = String(b.nombre == null ? '' : b.nombre).trim().replace(/\s+/g, ' ');
+        if (nombre.length < 3 || nombre.length > 80) return { error: 'El nombre es obligatorio (entre 3 y 80 caracteres).' };
+        v.nombre = nombre;
+    }
+    if (esAlta || b.email !== undefined) {
+        const email = String(b.email == null ? '' : b.email).trim().toLowerCase();
+        if (!emailValido(email) || email.length > 50) return { error: 'Ingrese un correo válido (hasta 50 caracteres).' };
+        v.email = email;
+    }
+    return { valores: v };
+}
+
 // Codigo para que el administrador fije su propia clave (se envia por correo; nunca se muestra ni se guarda una clave)
 function generarToken() {
     return crypto.randomBytes(12).toString('hex'); // 24 caracteres
@@ -82,4 +139,4 @@ function hashDescartable() {
     return crypto.createHash('sha1').update(crypto.randomBytes(32)).digest('hex');
 }
 
-module.exports = { CAMPOS_EMPRESA, CAMPOS_BANDERA, normalizarId, idValido, emailValido, urlHttpsOpcional, validarEmpresa, generarToken, hashDescartable };
+module.exports = { fechaOpcional, validarPeriodo, validarCuenta, CAMPOS_EMPRESA, CAMPOS_BANDERA, normalizarId, idValido, emailValido, urlHttpsOpcional, validarEmpresa, generarToken, hashDescartable };

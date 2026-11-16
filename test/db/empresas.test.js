@@ -11,7 +11,7 @@ const U = require('../../utils/empresas');
 
 async function llamar(handler, req) {
     let out;
-    await handler(Object.assign({ query: {}, body: {}, params: {}, user: { email: 'admin@tuid.test' } }, req), { status: () => ({ json: (j) => { out = j; } }) });
+    await handler(Object.assign({ query: {}, body: {}, params: {}, user: { email: 'admin@tuid.test', empresa: 'TUID', rol: 'A' } }, req), { status: () => ({ json: (j) => { out = j; } }) });
     return out;
 }
 
@@ -109,6 +109,69 @@ async function llamar(handler, req) {
     assert.strictEqual((await db.sync_query("SELECT COUNT(*) AS n FROM cliente WHERE empresa = 'ACME SA' AND activo = 1"))[0].n, 0);
     assert.strictEqual((await llamar(srv.accesoEmpresa, { params: { id: 'TUID' }, body: { activo: false } })).error, 1, 'TUID no se suspende');
     console.log('ok  habilitar / deshabilitar cuentas y suspender el acceso de una empresa');
+
+
+    // ---- ABM de usuarios de la empresa (CUIL obligatorio), alcance por empresa y periodo ----
+    await db.sync_query("INSERT INTO empresa (id, tipo, periodicidad) VALUES ('ACME SA','E',6) ON DUPLICATE KEY UPDATE tipo = tipo");
+    const adminCliente = { email: 'admin@acme.test', empresa: 'ACME SA', rol: 'A' };
+    const CUIL_OK = require('../../utils/cuil');
+    const cuilAna = '27' + '11111111' + CUIL_OK.checkDigit('2711111111');
+    let a = await llamar(srv.altaUsuario, { user: adminCliente, params: { id: 'ACME SA' }, body: { nombre: 'Ana Prueba', email: 'ana@acme.test' } });
+    assert.strictEqual(a.error, 1, 'sin CUIL no se da de alta');
+    a = await llamar(srv.altaUsuario, { user: adminCliente, params: { id: 'ACME SA' }, body: { cuil: '20123456787', nombre: 'Ana Prueba', email: 'ana@acme.test' } });
+    assert.strictEqual(a.error, 1, 'CUIL con verificador incorrecto');
+    a = await llamar(srv.altaUsuario, { user: adminCliente, params: { id: 'ACME SA' }, body: { cuil: cuilAna, nombre: 'Ana Prueba', email: 'Ana@Acme.test', rol: 'A' } });
+    assert.strictEqual(a.error, 0, JSON.stringify(a));
+    let cta = (await db.sync_query("SELECT * FROM cliente WHERE email = 'ana@acme.test'"))[0];
+    assert.strictEqual(cta.CUIL, cuilAna);
+    assert.strictEqual(cta.rol, 'U', 'el administrador de cliente no puede definir el rol');
+    assert.strictEqual((await llamar(srv.altaUsuario, { user: adminCliente, params: { id: 'OTRA' }, body: { cuil: cuilAna, nombre: 'Ana Prueba', email: 'x@otra.test' } })).error, 1, 'no opera sobre otra empresa');
+    a = await llamar(srv.altaUsuario, { user: adminCliente, params: { id: 'ACME SA' }, body: { cuil: cuilAna, nombre: 'Otra Persona', email: 'otra@acme.test' } });
+    assert.strictEqual(a.error, 1, 'CUIL repetido en la empresa');
+    // modificacion: el rol solo lo cambia TUID
+    assert.strictEqual((await llamar(srv.modificarUsuario, { user: adminCliente, params: { id: 'ACME SA', idUsuario: String(cta.id_usuario) }, body: { nombre: 'Ana P. Gomez', rol: 'S' } })).error, 0);
+    cta = (await db.sync_query('SELECT * FROM cliente WHERE id_usuario = ?', [cta.id_usuario]))[0];
+    assert.strictEqual(cta.Nombre, 'Ana P. Gomez');
+    assert.strictEqual(cta.rol, 'U');
+    assert.strictEqual((await llamar(srv.modificarUsuario, { params: { id: 'ACME SA', idUsuario: String(cta.id_usuario) }, body: { rol: 'S' } })).error, 0);
+    assert.strictEqual((await db.sync_query('SELECT rol FROM cliente WHERE id_usuario = ?', [cta.id_usuario]))[0].rol, 'S');
+    assert.strictEqual((await llamar(srv.modificarUsuario, { user: { email: 'x', empresa: 'OTRA', rol: 'A' }, params: { id: 'ACME SA', idUsuario: String(cta.id_usuario) }, body: { nombre: 'Intruso' } })).error, 1);
+    // un administrador de cliente solo ve su empresa y no crea administradores ni empresas
+    assert.strictEqual((await llamar(srv.listar, { user: adminCliente })).data.empresas.map((e) => e.id).join(), 'ACME SA');
+    assert.ok((await llamar(srv.listar)).data.empresas.length >= 2, 'TUID ve todas');
+    assert.strictEqual((await llamar(srv.cuentas, { user: { email: 'x', empresa: 'OTRA', rol: 'A' }, params: { id: 'ACME SA' } })).error, 1);
+    assert.strictEqual((await llamar(srv.invitar, { user: adminCliente, params: { id: 'ACME SA' }, body: { email: 'nuevo@acme.test' } })).error, 1);
+    assert.strictEqual((await llamar(srv.crear, { user: adminCliente, body: { id: 'NUEVA', admin_email: 'a@nueva.test' } })).error, 1);
+    // cuentas viejas con CUIL de relleno quedan marcadas como provisorias
+    await db.sync_query("INSERT INTO cliente (CUIL, email, empresa, rol, activo) VALUES ('000123', 'vieja@acme.test', 'ACME SA', 'U', 1)");
+    const cs = (await llamar(srv.cuentas, { params: { id: 'ACME SA' } })).data;
+    assert.strictEqual(cs.find((c) => c.email === 'vieja@acme.test').cuil_provisorio, 1);
+    assert.strictEqual(cs.find((c) => c.email === 'ana@acme.test').cuil_provisorio, 0);
+    // periodo
+    assert.ok(U.validarPeriodo({ fecha_actual: '2026-11-01', fecha_fin: '2026-11-30', fecha_proxima: '2027-05-01', cantidad_registros: 5 }).valores);
+    assert.ok(U.validarPeriodo({ fecha_actual: '2026-11-01', fecha_fin: '2026-11-30', fecha_proxima: '2027-05-01' }).error, 'la cantidad es obligatoria');
+    assert.ok(U.validarPeriodo({ fecha_actual: '2026-11-01', fecha_fin: '2026-10-30', fecha_proxima: '2027-05-01', cantidad_registros: 5 }).error, 'fin posterior al inicio');
+    assert.ok(U.validarPeriodo({ fecha_actual: '2026-02-31', fecha_fin: '2026-11-30', fecha_proxima: '2027-05-01', cantidad_registros: 5 }).error, 'fecha inexistente');
+    await srv.guardarPeriodo('ACME SA', { fecha_actual: '2026-11-01', fecha_fin: '2026-11-30', fecha_proxima: '2027-05-01', cantidad_registros: 5 });
+    const emp = (await db.sync_query("SELECT DATE_FORMAT(fecha_fin,'%Y-%m-%d') AS f, Cantidad AS n FROM empresa WHERE id = 'ACME SA'"))[0];
+    assert.strictEqual(emp.f, '2026-11-30');
+    assert.strictEqual(emp.n, 5);
+    // CUIT de la empresa: opcional, validado y editable solo por TUID; el periodo no se edita desde la empresa
+    assert.ok(U.validarEmpresa({ CUIT: '30-50001091-2' }, ['E'], false).valores.CUIT === '30500010912', 'normaliza el CUIT');
+    assert.ok(U.validarEmpresa({ CUIT: '30500010913' }, ['E'], false).error, 'CUIT con verificador incorrecto');
+    assert.strictEqual(U.validarEmpresa({ CUIT: '' }, ['E'], false).valores.CUIT, null, 'CUIT vacio -> null');
+    assert.strictEqual((await llamar(srv.actualizar, { params: { id: 'ACME SA' }, body: { CUIT: '30500010912' } })).error, 0);
+    assert.strictEqual((await llamar(srv.actualizar, { params: { id: 'ACME SA' }, body: { CUIT: '123' } })).error, 1);
+    assert.strictEqual((await llamar(srv.actualizar, { user: adminCliente, params: { id: 'ACME SA' }, body: { CUIT: '30500010912' } })).error, 1, 'el admin de cliente no edita la empresa');
+    assert.strictEqual((await llamar(srv.actualizar, { params: { id: 'ACME SA' }, body: { fecha_fin: '2030-01-01', Fecha_fin: '2030-01-01', cantidad_registros: 99 } })).error, 1, 'el periodo no se edita desde la empresa');
+    assert.strictEqual((await db.sync_query("SELECT CUIT FROM empresa WHERE id = 'ACME SA'"))[0].CUIT, '30500010912');
+    assert.strictEqual((await db.sync_query("SELECT Cantidad FROM empresa WHERE id = 'ACME SA'"))[0].Cantidad, 5, 'el periodo quedo como estaba');
+    assert.strictEqual((await llamar(srv.listar)).data.empresas.find((e) => e.id === 'ACME SA').CUIT, '30500010912', 'el listado trae el CUIT');
+    // el listado devuelve el periodo con los nombres que usa el panel (las columnas reales son Fecha_actual, Fecha_fin, Fecha_proxima, Cantidad)
+    const lis = (await llamar(srv.listar)).data.empresas.find((e) => e.id === 'ACME SA');
+    assert.ok(lis.fecha_actual && lis.fecha_fin && lis.fecha_proxima, 'fechas del periodo en el listado');
+    assert.strictEqual(lis.cantidad_registros, 5);
+    console.log('ok  ABM de usuarios con CUIL, alcance por empresa, rol y periodo');
 
     await db.sync_query("DELETE FROM cliente WHERE empresa = 'ACME SA'; DELETE FROM empresa WHERE id = 'ACME SA'");
     console.log('\nTodas las pruebas del ABM de empresas pasaron.');

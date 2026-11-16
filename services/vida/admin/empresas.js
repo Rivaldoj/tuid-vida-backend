@@ -17,6 +17,23 @@ module.exports.crear = function (deps) {
         return columnasCache;
     }
 
+    // Campos del periodo de certificacion -> columna real de `empresa` (sin distinguir mayusculas; la cantidad puede llamarse Cantidad o cantidad_registros)
+    const PERIODO = [
+        { campo: 'fecha_actual', candidatas: ['fecha_actual'] },
+        { campo: 'fecha_fin', candidatas: ['fecha_fin'] },
+        { campo: 'fecha_proxima', candidatas: ['fecha_proxima'] },
+        { campo: 'cantidad_registros', candidatas: ['cantidad', 'cantidad_registros'] }
+    ];
+    async function columnasPeriodo() {
+        const nombres = (await columnas()).map((c) => c.nombre);
+        const r = [];
+        for (const p of PERIODO) {
+            const real = nombres.find((n) => p.candidatas.includes(n.toLowerCase()));
+            if (real) r.push({ campo: p.campo, real });
+        }
+        return r;
+    }
+
     async function tiposExistentes() {
         const filas = await db.sync_query('SELECT DISTINCT tipo FROM empresa WHERE tipo IS NOT NULL');
         const tipos = filas.map((f) => String(f.tipo).toUpperCase());
@@ -25,17 +42,24 @@ module.exports.crear = function (deps) {
 
     const responder = (res, error, data) => res.status(200).json({ error, data });
 
+    // El Administrador de TUID ve y maneja todas las empresas; el Administrador de una empresa cliente solo la suya.
+    const esTuid = (req) => !!(req.user && req.user.empresa === 'TUID');
+    const puedeVer = (req, id) => esTuid(req) || (req.user && req.user.empresa === id);
+    const soloTuid = (req, res) => (esTuid(req) ? true : (responder(res, 1, 'Error de permisos'), false));
+
     // Empresas con la cantidad de administradores y usuarios activos de cada una
     async function listar(req, res) {
         try {
             const cols = (await columnas()).map((c) => c.nombre);
             const campos = ['id'].concat(util.CAMPOS_EMPRESA.filter((c) => cols.includes(c))).map((c) => 'e.' + c).join(', ');
+            // Periodo: en produccion las columnas son Fecha_actual, Fecha_fin, Fecha_proxima y Cantidad (se leen con alias fijo)
+            const periodo = (await columnasPeriodo()).map((p) => `e.${p.real} AS ${p.campo}`).join(', ');
             const filas = await db.sync_query(
-                `SELECT ${campos},
+                `SELECT ${campos}${periodo ? ', ' + periodo : ''},
                    (SELECT COUNT(*) FROM cliente c WHERE c.empresa = e.id AND c.activo = 1 AND c.rol <> 'U') AS administradores,
                    (SELECT COUNT(*) FROM cliente c WHERE c.empresa = e.id AND c.activo = 1 AND c.rol = 'U') AS usuarios,
                    (SELECT COUNT(*) FROM cliente c WHERE c.empresa = e.id) AS cuentas
-                 FROM empresa e ORDER BY e.id`);
+                 FROM empresa e ${esTuid(req) ? '' : 'WHERE e.id = ?'} ORDER BY e.id`, esTuid(req) ? [] : [req.user.empresa]);
             return responder(res, 0, { empresas: filas, tipos: await tiposExistentes() });
         } catch (err) {
             console.log(err);
@@ -44,7 +68,8 @@ module.exports.crear = function (deps) {
     }
 
     // Crea la cuenta de un administrador (sin clave) y le envia por correo el codigo para fijarla
-    async function invitarCuenta(empresa, email, rol, creadoPor) {
+    async function invitarCuenta(empresa, email, rol, creadoPor, extra) {
+        extra = extra || {};
         const token = util.generarToken();
         const existente = await db.sync_query('SELECT id_usuario, empresa FROM cliente WHERE email = ?', [email]);
         if (existente.length > 0) {
@@ -52,11 +77,12 @@ module.exports.crear = function (deps) {
             await db.sync_query(
                 `UPDATE cliente SET activo = 1, rol = ?, resetPasswordToken = ?, resetPasswordExpires = DATE_ADD(NOW(), INTERVAL ${HORAS_INVITACION} HOUR) WHERE id_usuario = ?`,
                 [rol, token, existente[0].id_usuario]);
+            if (extra.cuil) await db.sync_query('UPDATE cliente SET cuil = ?, nombre = ? WHERE id_usuario = ?', [extra.cuil, extra.nombre, existente[0].id_usuario]);
         } else {
             await db.sync_query(
-                `INSERT INTO cliente (email, password, empresa, rol, activo, resetPasswordToken, resetPasswordExpires)
-                 VALUES (?, ?, ?, ?, 1, ?, DATE_ADD(NOW(), INTERVAL ${HORAS_INVITACION} HOUR))`,
-                [email, util.hashDescartable(), empresa, rol, token]);
+                `INSERT INTO cliente (email, password, empresa, rol, activo, resetPasswordToken, resetPasswordExpires${extra.cuil ? ', cuil, nombre' : ''})
+                 VALUES (?, ?, ?, ?, 1, ?, DATE_ADD(NOW(), INTERVAL ${HORAS_INVITACION} HOUR)${extra.cuil ? ', ?, ?' : ''})`,
+                [email, util.hashDescartable(), empresa, rol, token].concat(extra.cuil ? [extra.cuil, extra.nombre] : []));
         }
         await deps.enviar('invitacion_admin', {
             title: 'Su acceso al panel de TuID Vida', empresa, email, token, horas: HORAS_INVITACION, urlPanel: deps.urlPanel()
@@ -67,6 +93,7 @@ module.exports.crear = function (deps) {
     // POST /auth/empresas { id, tipo, periodicidad, img, link, direcciones, emails, telefonos, admin_email }
     async function crear(req, res) {
         try {
+            if (!soloTuid(req, res)) return;
             const tipos = await tiposExistentes();
             const v = util.validarEmpresa(req.body, tipos, true);
             if (v.error) return responder(res, 1, v.error);
@@ -104,6 +131,7 @@ module.exports.crear = function (deps) {
     // PUT /auth/empresas/:id { tipo?, periodicidad?, img?, link?, direcciones?, emails?, telefonos? }
     async function actualizar(req, res) {
         try {
+            if (!soloTuid(req, res)) return;
             const id = util.normalizarId(req.params.id);
             const tipos = await tiposExistentes();
             const v = util.validarEmpresa(req.body, tipos, false);
@@ -123,8 +151,10 @@ module.exports.crear = function (deps) {
     // GET /auth/empresas/:id/cuentas -> administradores y usuarios de la empresa
     async function cuentas(req, res) {
         try {
+            if (!puedeVer(req, util.normalizarId(req.params.id))) return responder(res, 1, 'Error de permisos');
             const filas = await db.sync_query(
-                `SELECT id_usuario, email, rol, activo, fecha_ultima,
+                `SELECT id_usuario, CUIL AS cuil, Nombre AS nombre, email, rol, activo, fecha_ultima,
+                        (CUIL IS NULL OR CUIL NOT REGEXP '^[0-9]{11}$') AS cuil_provisorio,
                         (resetPasswordToken IS NOT NULL AND resetPasswordExpires > NOW()) AS invitacion_vigente
                  FROM cliente WHERE empresa = ? ORDER BY rol, email`, [util.normalizarId(req.params.id)]);
             return responder(res, 0, filas);
@@ -137,6 +167,7 @@ module.exports.crear = function (deps) {
     // POST /auth/empresas/:id/administradores { email }  -> nuevo administrador (o reinvitar a uno existente)
     async function invitar(req, res) {
         try {
+            if (!soloTuid(req, res)) return;
             const id = util.normalizarId(req.params.id);
             const email = String((req.body && req.body.email) || '').trim().toLowerCase();
             if (!util.emailValido(email)) return responder(res, 1, 'Ingrese un correo válido.');
@@ -153,9 +184,10 @@ module.exports.crear = function (deps) {
     // POST /auth/empresas/:id/cuentas/:idUsuario/estado { activo: true|false }  -> habilita o deshabilita una cuenta
     async function estadoCuenta(req, res) {
         try {
+            if (!puedeVer(req, util.normalizarId(req.params.id))) return responder(res, 1, 'Error de permisos');
             const activo = req.body && req.body.activo;
             if (typeof activo !== 'boolean') return responder(res, 1, 'Se debe enviar "activo": true o false');
-            const r = await db.sync_query('UPDATE cliente SET activo = ?, reintento = 0 WHERE id_usuario = ? AND empresa = ?',
+            const r = await db.sync_query(`UPDATE cliente SET activo = ?, reintento = 0 WHERE id_usuario = ? AND empresa = ?${esTuid(req) ? '' : " AND rol = 'U'"}`,
                 [activo ? 1 : 0, parseInt(req.params.idUsuario, 10) || 0, util.normalizarId(req.params.id)]);
             if (!r.affectedRows) return responder(res, 1, 'No se encontró la cuenta');
             return responder(res, 0, activo ? 'Cuenta habilitada' : 'Cuenta deshabilitada');
@@ -168,6 +200,7 @@ module.exports.crear = function (deps) {
     // POST /auth/empresas/:id/acceso { activo: true|false } -> suspende o reactiva el acceso de TODAS las cuentas de la empresa (no borra nada)
     async function accesoEmpresa(req, res) {
         try {
+            if (!soloTuid(req, res)) return;
             const activo = req.body && req.body.activo;
             if (typeof activo !== 'boolean') return responder(res, 1, 'Se debe enviar "activo": true o false');
             const id = util.normalizarId(req.params.id);
@@ -180,5 +213,70 @@ module.exports.crear = function (deps) {
         }
     }
 
-    return { listar, crear, actualizar, cuentas, invitar, estadoCuenta, accesoEmpresa };
+    // POST /auth/empresas/:id/usuarios { cuil, nombre, email, rol? } -> alta de un usuario de la empresa (recibe un correo para fijar su clave).
+    // El CUIL es obligatorio por seguridad. El rol solo lo define el Administrador de TUID; para el resto siempre es 'U'.
+    async function altaUsuario(req, res) {
+        try {
+            const id = util.normalizarId(req.params.id);
+            if (!puedeVer(req, id)) return responder(res, 1, 'Error de permisos');
+            const v = util.validarCuenta(req.body, true);
+            if (v.error) return responder(res, 1, v.error);
+            if ((await db.sync_query('SELECT id FROM empresa WHERE id = ?', [id])).length === 0) return responder(res, 1, 'No se encontró la empresa');
+            const rol = esTuid(req) && ['U', 'A', 'S'].includes(String((req.body || {}).rol || 'U').toUpperCase()) ? String((req.body || {}).rol || 'U').toUpperCase() : 'U';
+            const dup = await db.sync_query('SELECT id_usuario FROM cliente WHERE cuil = ? AND empresa = ? AND email <> ?', [v.valores.cuil, id, v.valores.email]);
+            if (dup.length > 0) return responder(res, 1, 'Ya hay otra cuenta de esta empresa con ese CUIL.');
+            const r = await invitarCuenta(id, v.valores.email, rol, req.user && req.user.email, { cuil: v.valores.cuil, nombre: v.valores.nombre });
+            if (r.error) return responder(res, 1, r.error);
+            return responder(res, 0, 'Usuario creado. Se envió el correo para que fije su clave.');
+        } catch (err) {
+            console.log(err);
+            return responder(res, 1, 'No se pudo crear el usuario');
+        }
+    }
+
+    // PUT /auth/empresas/:id/usuarios/:idUsuario { cuil?, nombre?, email?, rol? } -> modificacion. El rol solo lo cambia el Administrador de TUID.
+    async function modificarUsuario(req, res) {
+        try {
+            const id = util.normalizarId(req.params.id);
+            if (!puedeVer(req, id)) return responder(res, 1, 'Error de permisos');
+            const idUsuario = parseInt(req.params.idUsuario, 10) || 0;
+            const v = util.validarCuenta(req.body, false);
+            if (v.error) return responder(res, 1, v.error);
+            const cambios = Object.assign({}, v.valores);
+            if (req.body && req.body.rol !== undefined && esTuid(req)) {
+                const rol = String(req.body.rol).toUpperCase();
+                if (!['U', 'A', 'S'].includes(rol)) return responder(res, 1, 'El rol no es válido.');
+                cambios.rol = rol;
+            }
+            const campos = Object.keys(cambios);
+            if (campos.length === 0) return responder(res, 1, 'No hay nada para cambiar');
+            const actual = await db.sync_query('SELECT id_usuario, rol FROM cliente WHERE id_usuario = ? AND empresa = ?', [idUsuario, id]);
+            if (actual.length === 0) return responder(res, 1, 'No se encontró la cuenta');
+            if (!esTuid(req) && actual[0].rol !== 'U') return responder(res, 1, 'Error de permisos');
+            if (cambios.email) {
+                const otro = await db.sync_query('SELECT id_usuario FROM cliente WHERE email = ? AND id_usuario <> ?', [cambios.email, idUsuario]);
+                if (otro.length > 0) return responder(res, 1, 'Ese correo ya está en uso en otra cuenta.');
+            }
+            if (cambios.cuil) {
+                const otro = await db.sync_query('SELECT id_usuario FROM cliente WHERE cuil = ? AND empresa = ? AND id_usuario <> ?', [cambios.cuil, id, idUsuario]);
+                if (otro.length > 0) return responder(res, 1, 'Ya hay otra cuenta de esta empresa con ese CUIL.');
+            }
+            await db.sync_query(`UPDATE cliente SET ${campos.map((c) => c + ' = ?').join(', ')} WHERE id_usuario = ? AND empresa = ?`,
+                campos.map((c) => cambios[c]).concat([idUsuario, id]));
+            return responder(res, 0, 'Usuario actualizado');
+        } catch (err) {
+            console.log(err);
+            return responder(res, 1, 'No se pudo actualizar el usuario');
+        }
+    }
+
+    // Periodo de la ultima subida de archivo (inicio, fin, proxima validacion y cantidad de registros). Lo usa la subida de archivos.
+    async function guardarPeriodo(empresa, valores) {
+        const cols = await columnasPeriodo();
+        if (cols.length < PERIODO.length) throw new Error('Faltan columnas de periodo en empresa (fecha_actual, fecha_fin, fecha_proxima, Cantidad)');
+        await db.sync_query(`UPDATE empresa SET ${cols.map((c) => c.real + ' = ?').join(', ')}, ultimo_archivo = NOW() WHERE id = ?`,
+            cols.map((c) => valores[c.campo]).concat([empresa]));
+    }
+
+    return { listar, crear, actualizar, cuentas, invitar, estadoCuenta, accesoEmpresa, altaUsuario, modificarUsuario, guardarPeriodo };
 };

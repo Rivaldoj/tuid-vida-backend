@@ -118,6 +118,19 @@ async function llamar(handler, { query, body, params, user } = {}) {
     assert.ok(!adminUser.getUserPermissions({ empresa: 'OTRA', rol: 'A' }).includes('TEXTOS'));
     console.log('ok  solo el Administrador de TUID tiene el permiso TEXTOS');
 
+    // Permiso MIEMPRESA: el Administrador de una empresa cliente ve su propia empresa; el Usuario y TUID no
+    assert.ok(adminUser.getUserPermissions({ empresa: 'OTRA', rol: 'A' }).includes('MIEMPRESA'));
+    assert.ok(!adminUser.getUserPermissions({ empresa: 'OTRA', rol: 'U' }).includes('MIEMPRESA'));
+    assert.ok(!adminUser.getUserPermissions({ empresa: 'TUID', rol: 'A' }).includes('MIEMPRESA'));
+    assert.ok(!adminUser.getUserPermissions({ empresa: 'OTRA', rol: 'A' }).includes('EMPRESAS'));
+    console.log('ok  permiso MIEMPRESA solo para el Administrador de una empresa cliente');
+
+    // Permiso CARGAFALLECIDOS (carga mensual del padron de fallecidos): solo el Administrador de TUID
+    assert.ok(adminUser.getUserPermissions({ empresa: 'TUID', rol: 'A' }).includes('CARGAFALLECIDOS'));
+    assert.ok(!adminUser.getUserPermissions({ empresa: 'TUID', rol: 'U' }).includes('CARGAFALLECIDOS'));
+    assert.ok(!adminUser.getUserPermissions({ empresa: 'OTRA', rol: 'A' }).includes('CARGAFALLECIDOS'));
+    console.log('ok  permiso CARGAFALLECIDOS solo para el Administrador de TUID');
+
     console.log('\nTodas las pruebas del Modulo de Textos pasaron.');
     pool.end();
     process.exit(0);

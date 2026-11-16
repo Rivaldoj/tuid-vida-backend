@@ -2,7 +2,7 @@
 
 const htmlCorreo = require('./htmlCorreo');
 
-const VARIABLES = ['nombre', 'apellido', 'nombre_completo', 'cuil', 'empresa', 'fecha', 'auditor', 'enlace_foto', 'correo_cliente', 'telefono_cliente'];
+const VARIABLES = ['nombre', 'apellido', 'nombre_completo', 'cuil', 'empresa', 'fecha', 'auditor', 'enlace_foto', 'correo_cliente', 'telefono_cliente', 'token'];
 
 // Datos de ejemplo para la vista previa en el panel
 const EJEMPLO = {
@@ -15,7 +15,8 @@ const EJEMPLO = {
     auditor: 'auditor@tuid.test',
     enlace_foto: 'https://api.autenticartuid.com/vida/f/EjemploDeEnlace1234567',
     correo_cliente: 'soporte@entidad.test',
-    telefono_cliente: '0800-000-0000'
+    telefono_cliente: '0800-000-0000',
+    token: 'df7efa4f10b9'
 };
 
 // Reemplaza {{variable}} por su valor. Es un reemplazo de texto: no se ejecuta nada de lo que haya en la plantilla.

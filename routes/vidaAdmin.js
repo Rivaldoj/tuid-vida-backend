@@ -156,13 +156,37 @@ const empresasSrv = require('../services/vida/admin/empresas').crear({
   enviar: async (plantilla, params, para) => { require('../utils/mail').send(plantilla, params, para, null, null); }, // remitente por defecto del sistema (aws.emailFrom)
   urlPanel: () => (CONFIG.has('vida.panelUrl') ? String(CONFIG.get('vida.panelUrl')).replace(/\/+$/, '') : 'https://vida.autenticartuid.com')
 });
-router.get('/auth/empresas', adminMiddleware, hasPermission("EMPRESAS"), empresasSrv.listar);
+const empresaPermisos = hasAnyPermission(["EMPRESAS", "MIEMPRESA"]); // TUID: todas; Administrador de cliente: solo la suya (lo controla el servicio)
+router.get('/auth/empresas', adminMiddleware, empresaPermisos, empresasSrv.listar);
 router.post('/auth/empresas', adminMiddleware, hasPermission("EMPRESAS"), empresasSrv.crear);
 router.put('/auth/empresas/:id', adminMiddleware, hasPermission("EMPRESAS"), empresasSrv.actualizar);
-router.get('/auth/empresas/:id/cuentas', adminMiddleware, hasPermission("EMPRESAS"), empresasSrv.cuentas);
+router.get('/auth/empresas/:id/cuentas', adminMiddleware, empresaPermisos, empresasSrv.cuentas);
 router.post('/auth/empresas/:id/administradores', adminMiddleware, hasPermission("EMPRESAS"), empresasSrv.invitar);
-router.post('/auth/empresas/:id/cuentas/:idUsuario/estado', adminMiddleware, hasPermission("EMPRESAS"), empresasSrv.estadoCuenta);
+router.post('/auth/empresas/:id/usuarios', adminMiddleware, empresaPermisos, empresasSrv.altaUsuario);
+router.put('/auth/empresas/:id/usuarios/:idUsuario', adminMiddleware, empresaPermisos, empresasSrv.modificarUsuario);
+router.post('/auth/empresas/:id/cuentas/:idUsuario/estado', adminMiddleware, empresaPermisos, empresasSrv.estadoCuenta);
 router.post('/auth/empresas/:id/acceso', adminMiddleware, hasPermission("EMPRESAS"), empresasSrv.accesoEmpresa);
+
+//CONTROL DE FALLECIDOS: personas de la empresa marcadas "posible fallecido" (usuario_empresa). TUID elige la empresa; una empresa cliente ve solo la suya.
+const fallecidosSrv = require('../services/vida/admin/fallecidos').crear({ db: { sync_query: (...args) => VIDA_DB.sync_query(...args) } });
+router.get('/auth/fallecidos', adminMiddleware, hasPermission("FALLECIDOS"), fallecidosSrv.listar);
+
+//CARGA MENSUAL DE FALLECIDOS (solo Administrador de TUID): sube el DBF del padron, vista previa, aplica en segundo plano y permite revertir.
+//Actualiza padron.master, tuid_vida.usuario_empresa y tuid_vida.usuario. El archivo se limita a 25 MB (el mensual pesa unos 2 MB).
+const cargaFallecidosSrv = require('../services/vida/admin/cargaFallecidosPanel').crear({
+  padron: { sync_query: (...args) => PADRON_DB.sync_query(...args) },
+  vida: { sync_query: (...args) => VIDA_DB.sync_query(...args) },
+  leerDbf: require('../utils/leerDbf').leerDbf
+});
+const uploadDbf = multer({ dest: 'uploads/', limits: { fileSize: 26 * 1024 * 1024 } });
+const subirDbf = (req, res, next) => uploadDbf.single('file')(req, res, (err) => (err
+  ? res.status(200).json({ error: 1, data: 'El archivo es demasiado grande para subirlo desde el panel (máximo 25 MB).' })
+  : next()));
+router.post('/auth/fallecidos/carga/analizar', adminMiddleware, hasPermission("CARGAFALLECIDOS"), subirDbf, cargaFallecidosSrv.analizar);
+router.post('/auth/fallecidos/carga/aplicar', adminMiddleware, hasPermission("CARGAFALLECIDOS"), cargaFallecidosSrv.aplicar);
+router.get('/auth/fallecidos/carga/estado/:id', adminMiddleware, hasPermission("CARGAFALLECIDOS"), cargaFallecidosSrv.estado);
+router.get('/auth/fallecidos/carga/lotes', adminMiddleware, hasPermission("CARGAFALLECIDOS"), cargaFallecidosSrv.lotes);
+router.post('/auth/fallecidos/carga/revertir', adminMiddleware, hasPermission("CARGAFALLECIDOS"), cargaFallecidosSrv.revertir);
 
 //TEXTOS (mensajes de WhatsApp, correos y notificaciones): leer y armar contactos = Auditoria / Notificaciones / Textos; editar = solo Administrador (TEXTOS)
 router.get('/auth/textos', adminMiddleware, hasAnyPermission(["TEXTOS","AUDITORIA","NOTIFICACIONES"]), services.textos.list);
