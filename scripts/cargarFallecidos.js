@@ -104,6 +104,7 @@ const csv = (v) => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"';
         fila('estan en el padron', an.master.coinciden); fila('no estan en el padron (ALTAS)', an.master.noEncontrados); fila('altas con DNI ya existente', an.altasDniRepetido.length);
         fila('A MARCAR (nuevos)', an.master.marcar); fila('A COMPLETAR (sin fecha)', an.master.completar);
         fila('ya estaban igual', an.master.igual); fila('CONFLICTO de fecha', an.master.conflicto);
+        if (an.master.noEncontrados > 0) console.log('  >> ATENCION: hay fallecidos que NO estan en el padron. Primero actualizar el padron mensual (node scripts/actualizarPadron.js, o scripts/cargaMensual.js que hace todo en orden).');
         console.log('tuid_vida.usuario_empresa');
         fila('personas', an.usuario_empresa.personas); fila('filas (empresas)', an.usuario_empresa.filas);
         fila('A MARCAR (personas)', an.usuario_empresa.marcar); fila('A COMPLETAR', an.usuario_empresa.completar);
