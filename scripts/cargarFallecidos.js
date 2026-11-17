@@ -42,7 +42,7 @@ function configBase(local) {
     }
     const d = require('../config/default.json');
     let l = {};
-    const rutaLocal = process.env.TUID_CONFIG_LOCAL || 'C:/TUID/Carpetas de Apoyo/secrets/backend-produccion-local.json';
+    const rutaLocal = process.env.TUID_CONFIG_LOCAL || path.join(__dirname, '..', '..', 'secrets', 'backend-produccion-local.json');
     try { l = JSON.parse(fs.readFileSync(rutaLocal, 'utf8')); } catch (e) { /* sin archivo local: solo default.json */ }
     const sec = (k) => Object.assign({}, d[k].db, (l[k] && l[k].db) || {});
     const ssl = { ssl: { rejectUnauthorized: false }, connectTimeout: 15000 };

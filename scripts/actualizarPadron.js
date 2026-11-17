@@ -35,7 +35,7 @@ function configPadron(local) {
     if (local) return { host: '127.0.0.1', port: 3307, user: 'root', password: '', database: 'padron_test', connectTimeout: 10000 };
     const d = require('../config/default.json');
     let l = {};
-    const rutaLocal = process.env.TUID_CONFIG_LOCAL || 'C:/TUID/Carpetas de Apoyo/secrets/backend-produccion-local.json';
+    const rutaLocal = process.env.TUID_CONFIG_LOCAL || path.join(__dirname, '..', '..', 'secrets', 'backend-produccion-local.json');
     try { l = JSON.parse(fs.readFileSync(rutaLocal, 'utf8')); } catch (e) { /* sin archivo local: solo default.json */ }
     return Object.assign({}, d.padron.db, (l.padron && l.padron.db) || {}, { ssl: { rejectUnauthorized: false }, connectTimeout: 15000 });
 }
