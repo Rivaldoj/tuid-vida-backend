@@ -123,7 +123,8 @@ const csv = (v) => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"';
             if (t !== ultimo && num % 5000 === 0) { ultimo = t; console.log('  ' + t + '  (' + Math.round((Date.now() - t0) / 1000) + ' s)'); }
         }, { continuar: a.continuar });
         await m.registrarLote({ lote, archivo: path.basename(a.archivo), resumen: 'altas ' + r.altas + ', completadas ' + r.completadas + ' (' + validas.length + ' registros)' });
-        console.log('\nListo en ' + Math.round((Date.now() - t0) / 1000) + ' s. Altas: ' + r.altas + ' · completadas: ' + r.completadas);
+        console.log('\nListo en ' + Math.round((Date.now() - t0) / 1000) + ' s. Altas del lote: ' + r.altas + (a.continuar ? ' (en esta corrida: ' + r.altasEstaCorrida + ')' : '') +
+            ' · completadas' + (a.continuar ? ' en esta corrida' : '') + ': ' + r.completadas);
         console.log('Para deshacerlo:  node scripts/actualizarPadron.js --revertir ' + lote + (a.local ? ' --local' : ''));
         console.log('SIGUIENTE PASO: node scripts/cargarFallecidos.js --archivo <pdfallem.dbf>');
     } finally {

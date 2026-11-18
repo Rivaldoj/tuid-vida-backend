@@ -88,9 +88,13 @@ const mk = (dni, pre) => { const b = (pre || '27') + String(dni).padStart(8, '0'
     assert.deepStrictEqual([an.nuevas.length, an.completar.length, an.iguales, an.nuevasFallecidas], [3, 1, 1, 1]);
     assert.strictEqual((await padron.sync_query('SELECT COUNT(*) n FROM master'))[0].n, 2, 'analizar no escribe');
 
-    const r = await m.aplicar(an, 'padron_prueba');
+    // la carga se "corta" tras la primera alta y se retoma con continuar: el total del lote debe contar TODAS las altas
+    const parcial = await m.aplicar(Object.assign({}, an, { nuevas: an.nuevas.slice(0, 1), completar: [] }), 'padron_prueba');
+    assert.deepStrictEqual(parcial, { altas: 1, completadas: 0, altasEstaCorrida: 1 });
+    const an1 = await m.analizar(validas);
+    const r = await m.aplicar(an1, 'padron_prueba', null, { continuar: true });
     await m.registrarLote({ lote: 'padron_prueba', archivo: 'padronac_test.dbf', resumen: 'prueba' });
-    assert.deepStrictEqual(r, { altas: 3, completadas: 1 });
+    assert.deepStrictEqual(r, { altas: 3, completadas: 1, altasEstaCorrida: 2 });
     assert.strictEqual(await m.loteExiste('padron_prueba'), true);
     const g = async (c) => (await padron.sync_query('SELECT * FROM master WHERE CUIL = ?', [c]))[0];
     const a1 = await g(nueva1);

@@ -102,6 +102,10 @@ module.exports.crear = function (deps) {
             out.completadas += Math.floor((r.affectedRows || 0) / 2);   // en ON DUPLICATE KEY cada fila modificada cuenta 2
             avisar('completadas ' + out.completadas);
         }
+        // Total de altas del lote: si la carga se corto y se retomo (--continuar), las de corridas anteriores ya estan en el log del lote
+        out.altasEstaCorrida = out.altas;
+        const [tot] = await padron.sync_query('SELECT COUNT(*) n FROM padron_carga_log WHERE lote = ? AND accion = \'alta\'', [lote]);
+        out.altas = Math.max(out.altas, Number(tot.n) || 0);
         return out;
     }
 
