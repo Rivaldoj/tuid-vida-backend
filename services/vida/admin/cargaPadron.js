@@ -67,17 +67,24 @@ module.exports.crear = function (deps) {
         return Number(r[0].n) + Number(l[0].n) > 0;
     }
 
-    async function aplicar(analisis, lote, onProgreso) {
+    async function aplicar(analisis, lote, onProgreso, opciones) {
         await asegurarTablas();
         const out = { altas: 0, completadas: 0 };
         const avisar = (t) => { if (onProgreso) onProgreso(t); };
-        // 1) se anotan las altas en el log ANTES de escribir (si algo falla a medias, el lote se puede deshacer igual)
-        for (const t of trozos(analisis.nuevas, 2000)) {
-            await padron.sync_query('INSERT INTO padron_carga_log (fecha, lote, cuil, accion) VALUES ' + t.map(() => '(NOW(), ?, ?, \'alta\')').join(', '),
-                [].concat(...t.map((f) => [lote, f.cuil])));
+        // Si se esta CONTINUANDO un lote cortado, no se vuelven a anotar las altas que ya estaban en el log del lote
+        const yaAnotados = new Set();
+        if (opciones && opciones.continuar) {
+            const r = await padron.sync_query('SELECT cuil FROM padron_carga_log WHERE lote = ? AND accion = \'alta\'', [lote]);
+            r.forEach((x) => yaAnotados.add(Number(x.cuil)));
         }
+        // 1) cada tanda se anota en el log ANTES de escribirla (si algo falla a medias, el lote se puede deshacer igual)
         // 2) altas
         for (const t of trozos(analisis.nuevas, TROZO_ESCRITURA)) {
+            const sinAnotar = t.filter((f) => !yaAnotados.has(f.cuil));
+            if (sinAnotar.length) {
+                await padron.sync_query('INSERT INTO padron_carga_log (fecha, lote, cuil, accion) VALUES ' + sinAnotar.map(() => '(NOW(), ?, ?, \'alta\')').join(', '),
+                    [].concat(...sinAnotar.map((f) => [lote, f.cuil])));
+            }
             const sql = 'INSERT IGNORE INTO master (CUIL, Apellido_Nombre, Apellido, Nombre, Sexo, DNI, IdActividad, Baja, FechaNac, CP, IdProvincia, Fallecido, FechaFalle, OB, IdLote) VALUES ' +
                 t.map(() => '(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').join(', ');
             const r = await padron.sync_query(sql, [].concat(...t.map((f) => [f.cuil, f.apenom, f.apellido, f.nombre, f.sexo, f.dni, f.idActividad, f.baja,

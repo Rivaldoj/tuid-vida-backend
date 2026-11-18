@@ -16,6 +16,7 @@ for (let i = 2; i < process.argv.length; i++) {
     else if (k === '--apply') a.apply = true;
     else if (k === '--altas') a.altas = true;
     else if (k === '--local') a.local = true;
+    else if (k === '--continuar') a.continuar = true;
     else { console.error('Argumento desconocido: ' + k); process.exit(2); }
 }
 
@@ -26,7 +27,7 @@ function paso(nombre, script, args) {
 }
 
 const comunes = (a.apply ? ['--apply'] : []).concat(a.local ? ['--local'] : []);
-if (!paso('PASO 1 de 2: padron (master)', 'actualizarPadron.js', ['--archivo', a.padron].concat(comunes))) {
+if (!paso('PASO 1 de 2: padron (master)', 'actualizarPadron.js', ['--archivo', a.padron].concat(comunes, a.continuar ? ['--continuar', '--lote', 'padron_' + new Date().toISOString().slice(0, 10)] : []))) {
     console.error('\nEl paso 1 fallo: NO se ejecuta la carga de fallecidos. Resolver y repetir.');
     process.exit(1);
 }

@@ -25,6 +25,7 @@ function argumentos(argv) {
         else if (k === '--local') a.local = true;
         else if (k === '--lote') a.lote = argv[++i];
         else if (k === '--revertir') a.revertir = argv[++i];
+        else if (k === '--continuar') a.continuar = true;
         else if (k === '--salida') a.salida = argv[++i];
         else { console.error('Argumento desconocido: ' + k); process.exit(2); }
     }
@@ -45,9 +46,23 @@ const csv = (v) => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"';
 
 (async () => {
     const a = argumentos(process.argv);
-    const c = mysql.createConnection(configPadron(a.local));
-    const q = util.promisify(c.query).bind(c);
-    const padron = { sync_query: (sql, p) => q({ sql, timeout: 10 * 60 * 1000, values: p }) };
+    // La base remota a veces se pone lenta o corta la conexion: se reconecta y se reintenta (las escrituras de este script son repetibles sin duplicar)
+    let c, q;
+    const conectar = () => { c = mysql.createConnection(configPadron(a.local)); c.on('error', () => {}); q = util.promisify(c.query).bind(c); };
+    conectar();
+    const RECONECTAR = ['PROTOCOL_SEQUENCE_TIMEOUT', 'PROTOCOL_CONNECTION_LOST', 'ETIMEDOUT', 'ECONNRESET', 'EPIPE', 'ER_LOCK_WAIT_TIMEOUT', 'ER_LOCK_DEADLOCK'];
+    const padron = { sync_query: async (sql, p) => {
+        for (let i = 1; ; i++) {
+            try { return await q({ sql, timeout: 4 * 60 * 1000, values: p }); }
+            catch (e) {
+                if (i >= 6 || !RECONECTAR.includes(e.code)) throw e;
+                console.log('  (' + e.code + ': reintento ' + i + ' de 5)');
+                try { c.destroy(); } catch (x) { /* ya cerrada */ }
+                await new Promise((r) => setTimeout(r, 5000 * i));
+                conectar();
+            }
+        }
+    } };
     const m = motorCrear({ padron });
     try {
         if (a.revertir) {
@@ -99,16 +114,19 @@ const csv = (v) => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"';
             console.log('Despues del padron, correr la carga de fallecidos (scripts/cargarFallecidos.js).');
             return;
         }
-        if (await m.loteExiste(lote)) { console.error('El lote ' + lote + ' ya existe. Usar --lote con otro nombre, o --revertir ' + lote + ' primero.'); process.exit(2); }
+        if (!a.continuar && await m.loteExiste(lote)) { console.error('El lote ' + lote + ' ya existe. Si quedo cortado, repetir con --continuar; o usar --lote con otro nombre, o --revertir ' + lote + ' primero.'); process.exit(2); }
         console.log('\nAPLICANDO el lote ' + lote + ' ...');
         const t0 = Date.now();
         let ultimo = '';
-        const r = await m.aplicar(an, lote, (t) => { if (t !== ultimo && /\b\d*000$/.test(t)) { ultimo = t; process.stdout.write('\r  ' + t + '        '); } });
+        const r = await m.aplicar(an, lote, (t) => {
+            const num = Number(t.replace(/\D/g, ''));
+            if (t !== ultimo && num % 5000 === 0) { ultimo = t; console.log('  ' + t + '  (' + Math.round((Date.now() - t0) / 1000) + ' s)'); }
+        }, { continuar: a.continuar });
         await m.registrarLote({ lote, archivo: path.basename(a.archivo), resumen: 'altas ' + r.altas + ', completadas ' + r.completadas + ' (' + validas.length + ' registros)' });
         console.log('\nListo en ' + Math.round((Date.now() - t0) / 1000) + ' s. Altas: ' + r.altas + ' · completadas: ' + r.completadas);
         console.log('Para deshacerlo:  node scripts/actualizarPadron.js --revertir ' + lote + (a.local ? ' --local' : ''));
         console.log('SIGUIENTE PASO: node scripts/cargarFallecidos.js --archivo <pdfallem.dbf>');
     } finally {
-        c.end();
+        try { c.end(); } catch (e) { /* ya cerrada */ }
     }
 })().catch((e) => { console.error('ERROR:', e.code || e.message); process.exit(1); });
