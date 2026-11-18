@@ -56,6 +56,15 @@ function conexion(cfg) {
 }
 
 async function leerDbf(ruta) {
+    // Un .csv con columnas CUIL;FECHAFALLE (fecha AAAA-MM-DD) tambien sirve: todos los registros se toman como fallecidos
+    if (/\.csv$/i.test(ruta)) {
+        const lineas = fs.readFileSync(ruta, 'utf8').replace(/^﻿/, '').split(/\r?\n/).filter((l) => l.trim());
+        const cab = lineas.shift().split(';').map((s) => s.trim().toUpperCase());
+        const ic = cab.indexOf('CUIL'), ifa = cab.indexOf('FECHAFALLE');
+        if (ic < 0 || ifa < 0) return { filas: [], campos: cab };
+        const filas = lineas.map((l) => { const x = l.split(';'); return { CUIL: x[ic].trim(), FALLECIDO: 1, FECHAFALLE: (x[ifa] || '').trim() }; });
+        return { filas, campos: ['CUIL', 'FALLECIDO', 'FECHAFALLE'] };
+    }
     const f = await DBFFile.open(ruta);
     const filas = [];
     for (;;) {
