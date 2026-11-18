@@ -550,7 +550,13 @@ module.exports.upload = async(req,res,next)=>{
         res.response.data = periodo.error;
         return res.status(200).json(res.response);
     }
-    slack.debug( 'El cliente ' + req.user.empresa + ' subio un nuevo archivo: ' + file.originalname);
+    // la empresa de destino: la del usuario; TUID puede subir por cuenta de otra empresa (se avisa en el canal)
+    let destino;
+    try { destino = await require('../../../utils/empresas').empresaDeSubida(VIDA_DB, req.user, req.body); }
+    catch (err) { console.log(err); fs.unlink(file.path, () => {}); res.response.data = "No se pudo comprobar la empresa"; return res.status(200).json(res.response); }
+    if (destino.error) { fs.unlink(file.path, () => {}); res.response.data = destino.error; return res.status(200).json(res.response); }
+    const empresaDestino = destino.empresa;
+    slack.debug( (destino.porCuentaDe ? 'TUID (' + req.user.email + ') subio por cuenta del cliente ' + empresaDestino : 'El cliente ' + empresaDestino + ' subio') + ' un nuevo archivo: ' + file.originalname);
     let stream = fs.createReadStream(file.path);
     let myArray = [];
     let csvStream = csv
@@ -560,7 +566,7 @@ module.exports.upload = async(req,res,next)=>{
             if (data.length == 4){
                 data = data.concat('1');
             }
-            data = data.concat(req.user.empresa);
+            data = data.concat(empresaDestino);
             myArray.push(data);
         })
         .on("end", function () {
@@ -575,7 +581,7 @@ module.exports.upload = async(req,res,next)=>{
                     res.status(201).json(res.response);
                 } else {
                     let query =  'start transaction; delete from tuid_vida.usuario_empresa where empresa = ?;';
-                    connection.query(query, [req.user.empresa], function(err) {
+                    connection.query(query, [empresaDestino], function(err) {
                     
                         let query =  'insert into tuid_vida.usuario_empresa (cuil,fecha_recordatorio,notificacion,proxima, notificaciones_periodo, empresa) VALUES ?';
                         connection.query(query, [myArray], function(err) {
@@ -587,10 +593,10 @@ module.exports.upload = async(req,res,next)=>{
                             }else{
                                 const pv = periodo.valores;
                                 connection.query('UPDATE tuid_vida.empresa SET Fecha_actual = ?, Fecha_fin = ?, Fecha_proxima = ?, Cantidad = ?, ultimo_archivo = NOW() WHERE id = ?',
-                                    [pv.fecha_actual, pv.fecha_fin, pv.fecha_proxima, pv.cantidad_registros, req.user.empresa], function(err) { if (err) console.log('[upload] no se guardo el periodo:', err.message); });
+                                    [pv.fecha_actual, pv.fecha_fin, pv.fecha_proxima, pv.cantidad_registros, empresaDestino], function(err) { if (err) console.log('[upload] no se guardo el periodo:', err.message); });
                                 let query =  'UPDATE tuid_vida.usuario_empresa SET dni = SUBSTRING(cuil,3,8) where empresa = ?;' +
                                     'commit;';
-                                connection.query(query, [req.user.empresa], function(err) {
+                                connection.query(query, [empresaDestino], function(err) {
                                     res.response.error = 0;
                                     res.response.data = "Archivo subido";
                                     res.status(200).json(res.response);
@@ -603,7 +609,7 @@ module.exports.upload = async(req,res,next)=>{
             });
         });
     stream.pipe(csvStream);
-    var myBucket = "validador-de-id/"+req.user.empresa;
+    var myBucket = "validador-de-id/"+empresaDestino;
     fs.readFile(file.path, function (err, data) {
         if (err) {
             throw err;

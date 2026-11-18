@@ -152,6 +152,12 @@ async function llamar(handler, req) {
     assert.ok(U.validarPeriodo({ fecha_actual: '2026-11-01', fecha_fin: '2026-11-30', fecha_proxima: '2027-05-01' }).error, 'la cantidad es obligatoria');
     assert.ok(U.validarPeriodo({ fecha_actual: '2026-11-01', fecha_fin: '2026-10-30', fecha_proxima: '2027-05-01', cantidad_registros: 5 }).error, 'fin posterior al inicio');
     assert.ok(U.validarPeriodo({ fecha_actual: '2026-02-31', fecha_fin: '2026-11-30', fecha_proxima: '2027-05-01', cantidad_registros: 5 }).error, 'fecha inexistente');
+    // empresa de destino al subir un listado: la propia; TUID puede elegir otra que exista; una empresa cliente no puede subir por otra
+    assert.deepStrictEqual(await U.empresaDeSubida(db, { empresa: 'ACME SA' }, { empresa: 'OTRA' }), { empresa: 'ACME SA', porCuentaDe: false }, 'un cliente sube siempre a la suya');
+    assert.deepStrictEqual(await U.empresaDeSubida(db, { empresa: 'TUID' }, { empresa: 'ACME SA' }), { empresa: 'ACME SA', porCuentaDe: true });
+    assert.deepStrictEqual(await U.empresaDeSubida(db, { empresa: 'TUID' }, {}), { empresa: 'TUID', porCuentaDe: false });
+    assert.ok((await U.empresaDeSubida(db, { empresa: 'TUID' }, { empresa: 'NO EXISTE' })).error, 'TUID elige una empresa que no existe');
+    console.log('ok  empresa de destino al subir un listado');
     await srv.guardarPeriodo('ACME SA', { fecha_actual: '2026-11-01', fecha_fin: '2026-11-30', fecha_proxima: '2027-05-01', cantidad_registros: 5 });
     const emp = (await db.sync_query("SELECT DATE_FORMAT(fecha_fin,'%Y-%m-%d') AS f, Cantidad AS n FROM empresa WHERE id = 'ACME SA'"))[0];
     assert.strictEqual(emp.f, '2026-11-30');

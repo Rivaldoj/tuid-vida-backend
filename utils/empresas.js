@@ -139,4 +139,16 @@ function hashDescartable() {
     return crypto.createHash('sha1').update(crypto.randomBytes(32)).digest('hex');
 }
 
-module.exports = { fechaOpcional, validarPeriodo, validarCuenta, CAMPOS_EMPRESA, CAMPOS_BANDERA, normalizarId, idValido, emailValido, urlHttpsOpcional, validarEmpresa, generarToken, hashDescartable };
+// Empresa a la que va el listado que se sube. Una empresa cliente sube siempre a la suya (aunque mande otra en el pedido). El Administrador de TUID
+// puede elegir otra empresa, para subir por cuenta de quien necesite ayuda: debe existir. db: { sync_query }. Devuelve { empresa, porCuentaDe } o { error }
+async function empresaDeSubida(db, user, body) {
+    const propia = user && user.empresa;
+    if (propia !== 'TUID') return { empresa: propia, porCuentaDe: false };
+    const pedida = String((body && body.empresa) || '').trim();
+    if (!pedida || pedida === 'TUID') return { empresa: 'TUID', porCuentaDe: false };
+    const filas = await db.sync_query('SELECT id FROM empresa WHERE id = ?', [pedida]);
+    if (!filas.length) return { error: 'No se encontró la empresa elegida.' };
+    return { empresa: filas[0].id, porCuentaDe: true };
+}
+
+module.exports = { empresaDeSubida, fechaOpcional, validarPeriodo, validarCuenta, CAMPOS_EMPRESA, CAMPOS_BANDERA, normalizarId, idValido, emailValido, urlHttpsOpcional, validarEmpresa, generarToken, hashDescartable };
