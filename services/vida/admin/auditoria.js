@@ -150,8 +150,8 @@ module.exports.validacionOk = (req,res,next) => {
             console.log(err);
             return  res.status(400).json(res.response);
         }else{
-            // actualizo las validaciones
-            VIDA_DB.query(`update auditoria set auditor = ? , fechaAuditoria =  date(now()), fecha = IF(fecha > date_sub(now(),interval 7 day), now(), fecha) where id_usuario = ? `,[req.user.email,docs[0].id_usuario], function(err,docs){
+            // actualizo SOLO la certificacion aprobada (id_validacion), no todas las de la persona: las anteriores conservan su auditor y su fecha
+            VIDA_DB.query(`update auditoria set auditor = ? , fechaAuditoria =  date(now()), fecha = IF(fecha > date_sub(now(),interval 7 day), now(), fecha) where id_validacion = ? `,[req.user.email,req.params.id_validacion], function(err,docs){
                 
                 if (err){ 
                     return  res.status(400).json(res.response);
