@@ -183,7 +183,7 @@ router.post('/auth/empresas/:id/cuentas/:idUsuario/estado', adminMiddleware, emp
 router.post('/auth/empresas/:id/acceso', adminMiddleware, hasPermission("EMPRESAS"), empresasSrv.accesoEmpresa);
 
 //CONTROL DE FALLECIDOS: personas de la empresa marcadas "posible fallecido" (usuario_empresa). TUID elige la empresa; una empresa cliente ve solo la suya.
-const fallecidosSrv = require('../services/vida/admin/fallecidos').crear({ db: { sync_query: (...args) => VIDA_DB.sync_query(...args) } });
+const fallecidosSrv = require('../services/vida/admin/fallecidos').crear({ db: { sync_query: (...args) => VIDA_DB.sync_query(...args) }, padron: { sync_query: (...args) => PADRON_DB.sync_query(...args) } });
 router.get('/auth/fallecidos', adminMiddleware, hasPermission("FALLECIDOS"), fallecidosSrv.listar);
 
 //CARGA MENSUAL DE FALLECIDOS (solo Administrador de TUID): sube el DBF del padron, vista previa, aplica en segundo plano y permite revertir.
