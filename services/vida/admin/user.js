@@ -691,6 +691,8 @@ function getUserPermissions(user){
     }
     // Administrador de una empresa cliente: ve su propia empresa (usuarios y periodo)
     if (user.empresa != "TUID" && user.rol != "U") { permissions.push("MIEMPRESA"); }
+    // Correo masivo: Administrador de TUID (cualquier empresa) y Administrador de una empresa cliente (solo la suya, si tiene el envio de correos habilitado)
+    if (user.rol != "U") { permissions.push("CORREOS"); }
     // Configuracion global (por ejemplo el interruptor de auditoria): solo el Administrador de TUID
     if (user.empresa == "TUID" && user.rol != "U") { permissions.push("CONFIGURACION"); permissions.push("TEXTOS"); permissions.push("EMPRESAS"); permissions.push("BACKUPS"); permissions.push("CARGAFALLECIDOS"); }
     return permissions;

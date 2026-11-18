@@ -87,6 +87,21 @@ router.get('/auth/notificaciones/mensajes', adminMiddleware, hasPermission("NOTI
 router.post('/auth/notificaciones/destinatarios', adminMiddleware, hasPermission("NOTIFICACIONES"), notificacionesSrv.destinatarios);
 router.post('/auth/notificaciones/enviar', adminMiddleware, hasPermission("NOTIFICACIONES"), notificacionesSrv.enviar);
 router.get('/auth/notificaciones/historial', adminMiddleware, hasPermission("NOTIFICACIONES"), notificacionesSrv.historial);
+//CORREO masivo por empresa y segmento (certificaciones pendientes / registrados que no la usan), con textos del Modulo de Textos (canal email)
+const correoMasivoSrv = require('../services/vida/admin/correoMasivo').crear({
+  db: { sync_query: (...args) => VIDA_DB.sync_query(...args) },
+  enviar: (html, asunto, para) => require('../utils/mail').sendHtmlAsync(html, para, asunto),
+  soporte: () => CONFIG.get('vida').supportContact
+});
+router.get('/auth/correos/mensajes', adminMiddleware, hasPermission("CORREOS"), correoMasivoSrv.mensajes);
+router.post('/auth/correos/destinatarios', adminMiddleware, hasPermission("CORREOS"), correoMasivoSrv.destinatarios);
+router.post('/auth/correos/prueba', adminMiddleware, hasPermission("CORREOS"), correoMasivoSrv.prueba);
+router.post('/auth/correos/enviar', adminMiddleware, hasPermission("CORREOS"), correoMasivoSrv.enviar);
+router.get('/auth/correos/envio/:id', adminMiddleware, hasPermission("CORREOS"), correoMasivoSrv.envio);
+router.get('/auth/correos/historial', adminMiddleware, hasPermission("CORREOS"), correoMasivoSrv.historial);
+router.get('/auth/correos/bajas', adminMiddleware, hasPermission("CORREOS"), correoMasivoSrv.bajas);
+router.post('/auth/correos/bajas', adminMiddleware, hasPermission("CORREOS"), correoMasivoSrv.agregarBaja);
+router.delete('/auth/correos/bajas/:id', adminMiddleware, hasPermission("CORREOS"), correoMasivoSrv.quitarBaja);
 router.get('/auth/download', adminMiddleware, services.registrations.download);
 router.post('/auth/upload', adminMiddleware, upload.single('file'),services.users.upload);
 router.post('/auth/manuallyregister', adminMiddleware, services.registrations.manuallyRegister);

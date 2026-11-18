@@ -62,6 +62,10 @@ async function sembrar() {
     await q(require('fs').readFileSync(path.join(__dirname, '../scripts/sql/textos.sql'), 'utf8'));
     await q('DROP TABLE IF EXISTS notificaciones_envios;');
     await q(require('fs').readFileSync(path.join(__dirname, '../scripts/sql/notificaciones_log.sql'), 'utf8'));
+    // Correo masivo: un texto de comunicacion de ejemplo (clave COM_) y la empresa con periodo vigente y correos habilitados
+    await q('DROP TABLE IF EXISTS correos_envios; DROP TABLE IF EXISTS correos_bajas;');
+    await q("INSERT INTO textos (clave, canal, formato, nombre, asunto, cuerpo, actualizado_por, actualizado_en) VALUES ('COM_RECORDATORIO', 'email', 'html', 'Recordatorio de certificación', '{{nombre}}, le quedan pocos días para certificar', '<p>Hola {{nombre}}:</p><p>Recuerde certificar su Fe de Vida antes del <strong>{{fecha_vencimiento}}</strong>.</p>', 'prueba', NOW())");
+    await q("UPDATE empresa SET nombre = 'Banco de Prueba', Fecha_actual = DATE_SUB(CURDATE(), INTERVAL 30 DAY), Fecha_fin = DATE_ADD(CURDATE(), INTERVAL 30 DAY), emails = 1 WHERE id = 'TESTBANCO'");
     const { ana, beto, carlos, dora } = PERSONAS;
     await PADRON_DB.sync_query('INSERT INTO master (CUIL, Fallecido) VALUES (?, 0), (?, 0), (?, 0), (?, 0)', [ana.cuil, beto.cuil, carlos.cuil, dora.cuil]);
     await q("INSERT IGNORE INTO empresa (id, tipo, periodicidad) VALUES ('OTRABANCO','D',6)");
@@ -119,7 +123,7 @@ app.get('/preview/correo', (req, res) => res.send(ultimoCorreo ? ultimoCorreo.ht
 app.use('/vida/f', require('../services/vida/fotos')({ db: { sync_query: (...a) => VIDA_DB.sync_query(...a) }, firmarFoto: () => FOTO_DE_EJEMPLO }));
 app.use('/vida/admin', require('../routes/vidaAdmin').router);
 
-const dist = 'C:/TUID/panel-vida/fuente/dist/panel';
+const dist = path.join(__dirname, '..', '..', 'panel-vida', 'fuente', 'dist', 'panel');
 app.use(express.static(dist, { etag: false, lastModified: false, setHeaders: (res) => res.set('Cache-Control', 'no-store') }));
 app.get('*', (req, res) => { res.set('Cache-Control', 'no-store'); res.sendFile(path.join(dist, 'index.html')); });
 
