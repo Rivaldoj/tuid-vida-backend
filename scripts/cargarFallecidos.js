@@ -49,10 +49,30 @@ function configBase(local) {
     return { padron: Object.assign(sec('padron'), ssl), vida: Object.assign(sec('vida'), ssl) };
 }
 
+// La base remota a veces corta la conexion (sobre todo si estuvo quieta mucho rato, como durante la comparacion de millones de registros): se
+// reconecta y se reintenta. Las lecturas y los UPDATE de esta carga son repetibles; si un INSERT del log se repite, queda con los mismos valores de
+// "antes" y deshacer el lote sigue funcionando igual.
+const RECONECTAR = ['PROTOCOL_SEQUENCE_TIMEOUT', 'PROTOCOL_CONNECTION_LOST', 'ETIMEDOUT', 'ECONNRESET', 'EPIPE', 'ER_LOCK_WAIT_TIMEOUT', 'ER_LOCK_DEADLOCK'];
+
 function conexion(cfg) {
-    const c = mysql.createConnection(cfg);
-    const q = util.promisify(c.query).bind(c);
-    return { sync_query: (sql, p) => q({ sql, timeout: 10 * 60 * 1000, values: p }), end: () => c.end() };
+    let c, q;
+    const conectar = () => { c = mysql.createConnection(cfg); c.on('error', () => {}); q = util.promisify(c.query).bind(c); };
+    conectar();
+    return {
+        sync_query: async (sql, p) => {
+            for (let i = 1; ; i++) {
+                try { return await q({ sql, timeout: 10 * 60 * 1000, values: p }); }
+                catch (e) {
+                    if (i >= 6 || !RECONECTAR.includes(e.code)) throw e;
+                    console.log('\n  (' + e.code + ': reconectando, intento ' + i + ' de 5)');
+                    try { c.destroy(); } catch (x) { /* ya cerrada */ }
+                    await new Promise((r) => setTimeout(r, 5000 * i));
+                    conectar();
+                }
+            }
+        },
+        end: () => { try { c.end(); } catch (x) { /* ya cerrada */ } }
+    };
 }
 
 async function leerDbf(ruta) {
