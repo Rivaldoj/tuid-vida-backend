@@ -36,7 +36,7 @@ function resumenFiltros(f) {
     return 'nunca certificaron';
 }
 
-async function buscar(db, f) {
+async function buscar(db, f, fallecidas) {
     const params = [f.empresa];
     let donde = '';
     if (f.modo === 'cuil') {
@@ -51,13 +51,17 @@ async function buscar(db, f) {
     } else {
         donde = 'AND t.ultima IS NULL';
     }
-    return db.sync_query(
+    const filas = await db.sync_query(
         `SELECT t.* FROM (
             SELECT u.id_usuario, u.nombre, u.apellido, u.cuil, u.id_device, u.telefono, u.email, u.fecha, u.fecha_valida, ue.empresa,
                    (SELECT MAX(a.fecha) FROM auditoria a WHERE a.id_usuario = u.id_usuario AND a.empresa = ue.empresa) AS ultima
             FROM usuario u JOIN usuario_empresa ue ON ue.cuil = u.cuil
             WHERE ue.empresa = ? AND u.fecha_fallecido IS NULL
          ) t WHERE 1 = 1 ${donde} ORDER BY t.apellido, t.nombre LIMIT ${MAX_DESTINATARIOS + 1}`, params);
+    // quienes figuran fallecidos en el padron (master) no reciben nada, aunque usuario no lo tenga marcado
+    if (!fallecidas) return filas;
+    const muertos = await fallecidas(filas.map((p) => p.cuil));
+    return filas.filter((p) => !muertos.has(String(p.cuil)));
 }
 
 // El id_device es el token de Firebase del telefono: se renueva al reinstalar la app, cambiar de telefono o borrar sus datos, y Firebase lo da por
@@ -119,7 +123,7 @@ module.exports.crear = function (deps) {
         try {
             const v = validarFiltros(req.body, req.user);
             if (v.error) return responder(res, 1, v.error);
-            const filas = await buscar(db, v.filtros);
+            const filas = await buscar(db, v.filtros, deps.fallecidas);
             const conDispositivo = filas.filter((p) => p.id_device).length;
             const probablementeSinPush = filas.filter((p) => tokenProbablementeVencido(p)).length;
             return responder(res, 0, {
@@ -131,7 +135,7 @@ module.exports.crear = function (deps) {
             });
         } catch (err) {
             console.log(err);
-            return responder(res, 1, 'No se pudieron buscar los destinatarios');
+            return responder(res, 1, err && err.publico ? err.message : 'No se pudieron buscar los destinatarios');
         }
     }
 
@@ -155,7 +159,7 @@ module.exports.crear = function (deps) {
                 if (!titulo || !cuerpo) return responder(res, 1, 'Escriba el título y el mensaje, o elija un mensaje prearmado.');
                 if (titulo.length > 100 || cuerpo.length > 200) return responder(res, 1, 'El título admite 100 caracteres y el mensaje 200.');
             }
-            const filas = await buscar(db, v.filtros);
+            const filas = await buscar(db, v.filtros, deps.fallecidas);
             if (filas.length > MAX_DESTINATARIOS) return responder(res, 1, `Son más de ${MAX_DESTINATARIOS} personas: acote las fechas.`);
             const conDispositivo = filas.filter((p) => p.id_device);
             if (conDispositivo.length === 0) return responder(res, 1, 'No hay personas con la app instalada para ese filtro.');
@@ -228,7 +232,7 @@ module.exports.crear = function (deps) {
             });
         } catch (err) {
             console.log(err);
-            return responder(res, 1, 'No se pudieron enviar las notificaciones');
+            return responder(res, 1, err && err.publico ? err.message : 'No se pudieron enviar las notificaciones');
         }
     }
 

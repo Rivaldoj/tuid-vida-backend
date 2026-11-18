@@ -163,6 +163,11 @@ module.exports.crear = function (deps) {
                 FROM usuario u JOIN usuario_empresa ue ON ue.cuil = u.cuil
                 WHERE ue.empresa = ? AND u.fecha_fallecido IS NULL AND (ue.Posible_fallecido IS NULL OR ue.Posible_fallecido <> 1)
              ) t WHERE 1 = 1 ${donde} ORDER BY t.apellido, t.nombre LIMIT ${MAX_DESTINATARIOS + 1}`, params);
+        // quienes figuran fallecidos en el padron (master) no reciben nada, aunque usuario no lo tenga marcado
+        if (deps.fallecidas) {
+            const muertos = await deps.fallecidas(filas.map((p) => p.cuil));
+            for (let i = filas.length - 1; i >= 0; i--) if (muertos.has(String(filas[i].cuil))) filas.splice(i, 1);
+        }
         let bajas = [];
         try { bajas = await db.sync_query('SELECT cuil, email FROM correos_bajas'); } catch (err) { /* sin tabla todavia: nadie esta de baja */ }
         return { filas, bajas };
@@ -207,7 +212,7 @@ module.exports.crear = function (deps) {
             });
         } catch (err) {
             console.log(err);
-            return responder(res, 1, 'No se pudieron buscar los destinatarios');
+            return responder(res, 1, err && err.publico ? err.message : 'No se pudieron buscar los destinatarios');
         }
     }
 
@@ -318,7 +323,7 @@ module.exports.crear = function (deps) {
         } catch (err) {
             console.log(err);
             actual = null;
-            return responder(res, 1, 'No se pudo iniciar el envío');
+            return responder(res, 1, err && err.publico ? err.message : 'No se pudo iniciar el envío');
         }
     }
 

@@ -78,10 +78,13 @@ router.post('/auth/updateNotificaciones', adminMiddleware, services.users.update
 router.put('/auth/updateFallecido',adminMiddleware,hasPermission("FALLECIDOS"),  services.users.updateFallecido);
 router.post('/auth/reminder', adminMiddleware, services.users.reminder);
 router.post('/auth/notification', adminMiddleware, services.users.notification);
+// Consulta de fallecidos en el padron (master): lo usan el informe de Fallecidos, las notificaciones y el correo
+const padronFallecidos = require('../utils/padronFallecidos').crear({ sync_query: (...args) => PADRON_DB.sync_query(...args) });
 //NOTIFICACIONES push por rango de fechas y con mensajes prearmados (Modulo de Textos, canal push)
 const notificacionesSrv = require('../services/vida/admin/notificaciones').crear({
   db: { sync_query: (...args) => VIDA_DB.sync_query(...args) },
-  push: require('../utils/push')
+  push: require('../utils/push'),
+  fallecidas: padronFallecidos.fallecidas
 });
 router.get('/auth/notificaciones/mensajes', adminMiddleware, hasPermission("NOTIFICACIONES"), notificacionesSrv.mensajes);
 router.post('/auth/notificaciones/destinatarios', adminMiddleware, hasPermission("NOTIFICACIONES"), notificacionesSrv.destinatarios);
@@ -91,7 +94,8 @@ router.get('/auth/notificaciones/historial', adminMiddleware, hasPermission("NOT
 const correoMasivoSrv = require('../services/vida/admin/correoMasivo').crear({
   db: { sync_query: (...args) => VIDA_DB.sync_query(...args) },
   enviar: (html, asunto, para) => require('../utils/mail').sendHtmlAsync(html, para, asunto),
-  soporte: () => CONFIG.get('vida').supportContact
+  soporte: () => CONFIG.get('vida').supportContact,
+  fallecidas: padronFallecidos.fallecidas
 });
 router.get('/auth/correos/mensajes', adminMiddleware, hasPermission("CORREOS"), correoMasivoSrv.mensajes);
 router.post('/auth/correos/destinatarios', adminMiddleware, hasPermission("CORREOS"), correoMasivoSrv.destinatarios);
